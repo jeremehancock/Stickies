@@ -14,15 +14,20 @@ Open `index.html` (double-click the file, or serve the folder). That's it.
 - **Change Color** — hover a note and tap a color dot (or pick the color for new
   notes from the top bar).
 - **Delete** — hover and hit **×**. There's an **Undo** (also <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Z</kbd>).
+- **Rename the board** — click the board name in the top bar and type. The browser
+  tab updates to match.
+- **Switch theme** — Stickies opens in **dark mode**; toggle light/dark with the
+  sun/moon button in the top bar. Your choice is remembered on this device.
 
 Works with mouse and touch.
 
 ## Storage
 
-Notes are saved with your browser's **`localStorage`** — on **this** device, in
-**this** browser only. They are **not** synced across devices, shared, or backed
-up, and clearing your browser data (or using a private window) wipes them. This is
-meant as a scratchpad for ideas, not long-term storage.
+Your notes — along with the board name and your theme choice — are saved with your
+browser's **`localStorage`** — on **this** device, in **this** browser only. They
+are **not** synced across devices, shared, or backed up, and clearing your browser
+data (or using a private window) wipes them. This is meant as a scratchpad for
+ideas, not long-term storage.
 
 ## Built with
 
