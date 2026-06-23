@@ -283,8 +283,9 @@
   [data-theme="light"] #btnTheme .icon-sun{ display:none; }
 
   /* ---------------- footer credit ---------------- */
+  /* lives inside #board with a low z-index so notes stack on top of it */
   .credit{
-    position:fixed; left:50%; bottom:10px; z-index:80000;
+    position:fixed; left:50%; bottom:10px; z-index:1;
     transform: translateX(-50%);
     font-size:12px; color: var(--credit-text);
     text-align:center; white-space:nowrap;
@@ -389,7 +390,11 @@
 </head>
 <body>
 
-  <main id="board" aria-label="Sticky note board"></main>
+  <main id="board" aria-label="Sticky note board">
+    <footer class="credit">
+      Built and maintained by <a href="https://jeremehancock.com" target="_blank" rel="noopener noreferrer">Jereme Hancock</a>
+    </footer>
+  </main>
 
   <div class="empty-hint" id="emptyHint">Double-click anywhere to add your first note</div>
 
@@ -427,10 +432,6 @@
       </button>
     </div>
   </header>
-
-  <footer class="credit">
-    Built and maintained by <a href="https://jeremehancock.com" target="_blank" rel="noopener noreferrer">Jereme Hancock</a>
-  </footer>
 
   <div class="toasts" id="toasts" aria-live="polite"></div>
 
