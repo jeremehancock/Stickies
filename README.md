@@ -27,3 +27,11 @@ meant as a scratchpad for ideas, not long-term storage.
 ## Built with
 
 Vanilla HTML, CSS and JavaScript in one file. No frameworks.
+
+## License
+
+[MIT License](LICENSE)
+
+## AI Disclosure
+
+This project was created with the help of AI.
