@@ -241,6 +241,18 @@
   }
   .modal-card .close:hover{ background:#000; }
 
+  .modal-card.confirm{ width:min(400px, 92vw); }
+  .modal-card .confirm-text{ margin:0; color:#555; line-height:1.6; }
+  .modal-card .confirm-actions{ display:flex; gap:10px; margin-top:20px; }
+  .modal-card .confirm-actions button{
+    flex:1; border:none; border-radius:10px; padding:11px;
+    cursor:pointer; font:inherit; font-weight:600;
+  }
+  .modal-card .btn-cancel{ background:#eef0f3; color:#26262b; }
+  .modal-card .btn-cancel:hover{ background:#e3e6ea; }
+  .modal-card .btn-danger{ background:#ff5d5d; color:#fff; }
+  .modal-card .btn-danger:hover{ background:#f04444; }
+
   /* ---------------- animations ---------------- */
   @keyframes pop{ from{ opacity:0; transform: scale(.92) } to{ opacity:1; transform: scale(1) } }
   @keyframes notePop{
@@ -325,6 +337,17 @@
     </div>
   </div>
 
+  <div class="modal" id="confirmClear" hidden>
+    <div class="modal-card confirm" role="alertdialog" aria-modal="true" aria-labelledby="confirmTitle" aria-describedby="confirmDesc">
+      <h2 id="confirmTitle">Clear the board?</h2>
+      <p class="confirm-text" id="confirmDesc">This removes <b id="confirmCount">all notes</b> and can't be undone.</p>
+      <div class="confirm-actions">
+        <button class="btn-cancel" id="confirmCancel">Cancel</button>
+        <button class="btn-danger" id="confirmOk">Remove all</button>
+      </div>
+    </div>
+  </div>
+
 <script>
 (function(){
   "use strict";
@@ -348,6 +371,7 @@
   const emptyHint = document.getElementById("emptyHint");
   const toastWrap = document.getElementById("toasts");
   const helpEl    = document.getElementById("help");
+  const confirmEl = document.getElementById("confirmClear");
 
   let notes = [];                  // persisted source of truth
   const noteById = new Map();      // id -> note object
@@ -528,9 +552,15 @@
     save();
   }
 
-  function clearAll(){
+  function requestClearAll(){
     if (!notes.length) return;
-    if (!confirm("Remove all notes? This can't be undone.")) return;
+    const countEl = document.getElementById("confirmCount");
+    if (countEl) countEl.textContent =
+      notes.length === 1 ? "this note" : ("all " + notes.length + " notes");
+    openConfirm();
+  }
+
+  function performClearAll(){
     notes.slice().forEach(n => {
       const v = view.get(n.id);
       if (v){
@@ -700,12 +730,18 @@
   }
 
   document.getElementById("btnAdd").addEventListener("click", addNoteCentered);
-  document.getElementById("btnClear").addEventListener("click", clearAll);
+  document.getElementById("btnClear").addEventListener("click", requestClearAll);
   document.getElementById("btnHelp").addEventListener("click", openHelp);
   document.getElementById("helpClose").addEventListener("click", closeHelp);
   helpEl.addEventListener("click", e => { if (e.target === helpEl) closeHelp(); });
   function openHelp(){ helpEl.hidden = false; }
   function closeHelp(){ helpEl.hidden = true; }
+
+  document.getElementById("confirmCancel").addEventListener("click", closeConfirm);
+  document.getElementById("confirmOk").addEventListener("click", () => { closeConfirm(); performClearAll(); });
+  confirmEl.addEventListener("click", e => { if (e.target === confirmEl) closeConfirm(); });
+  function openConfirm(){ confirmEl.hidden = false; document.getElementById("confirmCancel").focus(); }
+  function closeConfirm(){ confirmEl.hidden = true; }
 
   /* ---------------- toasts ---------------- */
   function toast(msg, action){
@@ -735,6 +771,7 @@
   /* ---------------- keyboard ---------------- */
   window.addEventListener("keydown", e => {
     if (e.key === "Escape"){
+      if (!confirmEl.hidden){ closeConfirm(); return; }
       if (!helpEl.hidden){ closeHelp(); return; }
       const ae = document.activeElement;
       if (ae && ae.classList && ae.classList.contains("note-body")) ae.blur();
