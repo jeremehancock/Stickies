@@ -11,7 +11,7 @@ Open `index.html` (double-click the file, or serve the folder). That's it.
 - **Type** — click a note and start writing.
 - **Move** — drag it. The note lifts, tilts toward the direction you fling it, and
   springs back to rest when you let go.
-- **Recolour** — hover a note and tap a colour dot (or pick the colour for new
+- **Change Color** — hover a note and tap a color dot (or pick the color for new
   notes from the top bar).
 - **Delete** — hover and hit **×**. There's an **Undo** (also <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Z</kbd>).
 

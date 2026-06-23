@@ -12,7 +12,7 @@
     --ink: #36352f;
   }
 
-  /* ---- colour definitions (drive notes, swatches and dots) ---- */
+  /* ---- color definitions (drive notes, swatches and dots) ---- */
   [data-color="yellow"]{ --paper:#ffe79c; --paper-2:#fff4c4; --c:#ffd560; }
   [data-color="pink"]  { --paper:#ffc4d6; --paper-2:#ffdbe6; --c:#ff8fb0; }
   [data-color="green"] { --paper:#bcebbf; --paper-2:#d8f6da; --c:#7fd585; }
@@ -108,7 +108,7 @@
     pointer-events:none;
   }
 
-  /* per-note floating toolbar (recolour + delete) */
+  /* per-note floating toolbar (recolor + delete) */
   .note-tools{
     position:absolute; top:-15px; left:50%;
     display:flex; align-items:center; gap:6px;
@@ -279,7 +279,7 @@
       </svg>
       <span>Stickies</span>
     </div>
-    <div class="swatches" id="swatches" role="group" aria-label="Colour for new notes"></div>
+    <div class="swatches" id="swatches" role="group" aria-label="Color for new notes"></div>
     <div class="actions">
       <button id="btnAdd" class="btn primary" title="Add a note (or double-click the board)">+ Note</button>
       <button id="btnHelp" class="btn icon" title="How it works" aria-label="How it works">
@@ -311,7 +311,7 @@
         <li><b>Add</b> — double-click the board, or hit <b>+ Note</b>.</li>
         <li><b>Type</b> — click a note and start writing.</li>
         <li><b>Move</b> — just drag it. It lifts, tilts and settles back.</li>
-        <li><b>Recolour</b> — hover a note and tap a colour dot.</li>
+        <li><b>Change Color</b> — hover a note and tap a color dot.</li>
         <li><b>Delete</b> — hover a note and hit <b>×</b>.</li>
         <li><b>Undo a delete</b> — tap <kbd>Undo</kbd> on the toast, or press <kbd>Ctrl/⌘</kbd>+<kbd>Z</kbd>.</li>
       </ul>
@@ -397,7 +397,7 @@
     } catch(e){ return false; }
   }
 
-  /* ---------------- z-order & colour ---------------- */
+  /* ---------------- z-order & color ---------------- */
   function bringToFront(note){
     note.z = ++maxZ;
     const v = view.get(note.id);
@@ -687,7 +687,7 @@
     const b = document.createElement("button");
     b.className = "swatch";
     b.dataset.color = c.id;
-    b.title = c.label + " — colour for new notes";
+    b.title = c.label + " — color for new notes";
     b.setAttribute("aria-label", c.label);
     b.addEventListener("click", () => setActiveColor(c.id));
     swatchBar.appendChild(b);
@@ -774,7 +774,7 @@
     addNote(W * 0.30, H * 0.26, { color:"yellow",
       text:"Welcome to Stickies 👋\n\n• Double-click the board to add a note\n• Drag to move — it lifts & tilts\n• Click to type" });
     addNote(W * 0.53, H * 0.30, { color:"blue",
-      text:"Pick a colour up top for new notes, or hover a note to recolour it.\n\nHover to find the × to delete — there's an Undo." });
+      text:"Pick a color up top for new notes, or hover a note to change its color.\n\nHover to find the × to delete — there's an Undo." });
     addNote(W * 0.40, H * 0.55, { color:"pink",
       text:"Heads up: notes live only in THIS browser (localStorage). Clear your browser data or switch devices and they're gone. Not synced, not backed up." });
   }
