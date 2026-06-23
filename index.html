@@ -361,6 +361,20 @@
   .modal-card .btn-cancel:hover{ background: var(--btn-soft-bg-hover); }
   .modal-card .btn-danger{ background:#ff5d5d; color:#fff; }
   .modal-card .btn-danger:hover{ background:#f04444; }
+  .modal-card .btn-go{ background: var(--btn-primary-bg); color: var(--btn-primary-text); }
+  .modal-card .btn-go:hover{ background: var(--btn-primary-bg-hover); }
+
+  /* highlighted "this overwrites everything" notice in the import modal */
+  .modal-card .warn{
+    background: rgba(255,93,93,.10);
+    border:1px solid rgba(255,93,93,.38);
+    border-radius:10px; padding:11px 13px; margin:14px 0 0;
+    font-size:13px; color: var(--panel-text); line-height:1.55;
+  }
+  .modal-card code{
+    background: var(--panel-soft-bg); border-radius:6px;
+    padding:1px 6px; font-size:12px; color: var(--panel-soft-text);
+  }
 
   /* ---------------- animations ---------------- */
   @keyframes pop{ from{ opacity:0; transform: scale(.92) } to{ opacity:1; transform: scale(1) } }
@@ -411,6 +425,16 @@
     <div class="swatches" id="swatches" role="group" aria-label="Color for new notes"></div>
     <div class="actions">
       <button id="btnAdd" class="btn primary" title="Add a note (or double-click the board)">+ Note</button>
+      <button id="btnExport" class="btn icon" title="Export this board to a file" aria-label="Export this board to a file">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/>
+        </svg>
+      </button>
+      <button id="btnImport" class="btn icon" title="Import a board from a file" aria-label="Import a board from a file">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 21V9"/><path d="m7 14 5-5 5 5"/><path d="M5 3h14"/>
+        </svg>
+      </button>
       <button id="btnTheme" class="btn icon" title="Switch theme" aria-label="Switch theme">
         <svg class="icon-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="12" cy="12" r="4"/>
@@ -447,6 +471,7 @@
         <li><b>Undo a delete</b> — tap <kbd>Undo</kbd> on the toast, or press <kbd>Ctrl/⌘</kbd>+<kbd>Z</kbd>.</li>
         <li id="hRename"><b>Rename</b> — click the board name in the top bar and type.</li>
         <li id="hTheme"><b>Theme</b> — toggle light &amp; dark from the top bar; dark is the default.</li>
+        <li id="hExport"><b>Export / Import</b> — back up this board to a <code>.json</code> file, or load one back in. Importing <b>replaces</b> everything on this device.</li>
       </ul>
       <p class="storage">
         <b>About storage:</b> notes live only in <b>this</b> browser via <code>localStorage</code>.
@@ -468,6 +493,53 @@
       </div>
     </div>
   </div>
+
+  <div class="modal" id="exportModal" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="exportTitle" aria-describedby="exportDesc">
+      <h2 id="exportTitle">Export this board</h2>
+      <p class="confirm-text" id="exportDesc">
+        Save everything on this board — every note with its text, color and position, plus the board name — into a single file you can keep.
+      </p>
+      <ul>
+        <li>Use it as a <b>backup</b>, or to move this board to another browser or device (open it there and <b>Import</b>).</li>
+        <li>Downloads to your device as <code id="exportName">stickies-board.json</code>.</li>
+        <li>Nothing is uploaded — the file is built right here in your browser.</li>
+      </ul>
+      <div class="confirm-actions">
+        <button class="btn-cancel" id="exportCancel">Cancel</button>
+        <button class="btn-go" id="exportDownload">Download .json</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="importModal" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="importTitle" aria-describedby="importDesc">
+      <h2 id="importTitle">Import a board</h2>
+      <p class="confirm-text" id="importDesc">
+        Load a board from a Stickies <code>.json</code> file you exported earlier.
+      </p>
+      <p class="warn">
+        <b>⚠ This completely replaces your current board.</b> Every note and the board name saved in this browser will be <b>overwritten and can't be recovered</b>. If you want to keep what's here, <b>Export</b> it first.
+      </p>
+      <div class="confirm-actions">
+        <button class="btn-cancel" id="importCancel">Cancel</button>
+        <button class="btn-go" id="importChoose">Choose file…</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="importConfirm" hidden>
+    <div class="modal-card confirm" role="alertdialog" aria-modal="true" aria-labelledby="importConfirmTitle" aria-describedby="importConfirmDesc">
+      <h2 id="importConfirmTitle">Replace this board?</h2>
+      <p class="confirm-text" id="importConfirmDesc"></p>
+      <div class="confirm-actions">
+        <button class="btn-cancel" id="importConfirmCancel">Cancel</button>
+        <button class="btn-danger" id="importConfirmOk">Replace board</button>
+      </div>
+    </div>
+  </div>
+
+  <input type="file" id="importFile" accept="application/json,.json" hidden />
 
 <script>
 (function(){
@@ -497,6 +569,10 @@
   const confirmEl = document.getElementById("confirmClear");
   const boardNameEl = document.getElementById("boardName");
   const btnTheme    = document.getElementById("btnTheme");
+  const exportEl        = document.getElementById("exportModal");
+  const importEl        = document.getElementById("importModal");
+  const importConfirmEl = document.getElementById("importConfirm");
+  const importFileInput = document.getElementById("importFile");
   const isTouch = matchMedia("(hover: none) and (pointer: coarse)").matches
     || "ontouchstart" in window || navigator.maxTouchPoints > 0;
 
@@ -508,6 +584,7 @@
   let boardName = "";
   let theme = document.documentElement.getAttribute("data-theme") === "light" ? "light" : "dark";
   const undoStack = [];
+  let pendingImport = null;        // a parsed board waiting on the "Replace?" confirm
 
   /* ---------------- helpers ---------------- */
   const clamp = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
@@ -528,6 +605,11 @@
   }
 
   function refreshEmptyHint(){ emptyHint.style.display = notes.length ? "none" : ""; }
+
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g, c =>
+      ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
+  }
 
   /* ---------------- persistence ---------------- */
   let saveTimer = null;
@@ -712,6 +794,128 @@
     refreshEmptyHint();
   }
 
+  /* ---------------- export / import (backup & restore) ---------------- */
+  const COLOR_IDS = new Set(PALETTE.map(p => p.id));
+
+  // Turn the board name into a safe, friendly file name: "My Ideas!" -> "stickies-my-ideas.json"
+  function exportFilename(){
+    const slug = boardName.trim().toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 60);
+    return "stickies-" + (slug || "board") + ".json";
+  }
+
+  function exportBoard(){
+    const data = {
+      app: "stickies",
+      type: "stickies-board",
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      boardName: boardName,
+      activeColor: activeColor,
+      notes: notes.map(n => ({
+        id: n.id,
+        x: Math.round(n.x),
+        y: Math.round(n.y),
+        r: +(+n.r).toFixed(2),
+        color: n.color,
+        text: n.text,
+        z: n.z,
+      })),
+    };
+    try {
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = exportFilename();
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      toast(notes.length ? "Board exported" : "Empty board exported");
+    } catch(e){
+      toast("Couldn't export — your browser blocked the download.");
+    }
+  }
+
+  // Coerce one note from a file into a safe, fully-formed note object.
+  function sanitizeNote(n){
+    if (!n || typeof n !== "object") return null;
+    const num = (v, d) => Number.isFinite(+v) ? +v : d;
+    return {
+      id: (typeof n.id === "string" && n.id) ? n.id : uid(),
+      x: num(n.x, Math.random() * 200 + 40),
+      y: num(n.y, Math.random() * 200 + 40),
+      r: clamp(num(n.r, Math.random() * 6 - 3), -8, 8),
+      color: COLOR_IDS.has(n.color) ? n.color : "yellow",
+      text: typeof n.text === "string" ? n.text : (n.text == null ? "" : String(n.text)),
+      z: num(n.z, 1),
+    };
+  }
+
+  // Read a chosen file, validate it, and (if it looks like a board) stage the
+  // "Replace this board?" confirmation. Nothing is overwritten until confirmed.
+  function handleImportFile(file){
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onerror = () => toast("Couldn't read that file.");
+    reader.onload = () => {
+      let data;
+      try { data = JSON.parse(reader.result); }
+      catch(_){ toast("Couldn't import — that file isn't valid JSON."); return; }
+      if (!data || typeof data !== "object" || !Array.isArray(data.notes)){
+        toast("Couldn't import — that isn't a Stickies board file.");
+        return;
+      }
+      pendingImport = data;
+      const count = data.notes.length;
+      const rawName = (typeof data.boardName === "string") ? data.boardName.replace(/\s+/g, " ").trim() : "";
+      const name = rawName ? ('“' + escapeHtml(rawName) + '”') : "an untitled board";
+      const noun = count === 1 ? "1 note" : (count + " notes");
+      document.getElementById("importConfirmDesc").innerHTML =
+        "This replaces your current board with " + name + " (" + noun + ").<br>" +
+        "Everything saved in this browser now will be <b>permanently overwritten</b> and can't be undone.";
+      openImportConfirm();
+    };
+    reader.readAsText(file);
+  }
+
+  // The point of no return: wipe the board and rebuild it from the imported data.
+  function applyImport(data){
+    if (!data) return;
+
+    // tear down current DOM + bookkeeping
+    view.forEach(v => v.el.remove());
+    view.clear();
+    noteById.clear();
+    undoStack.length = 0;
+
+    const seen = new Set();
+    notes = [];
+    data.notes.forEach(raw => {
+      const n = sanitizeNote(raw);
+      if (!n) return;
+      if (seen.has(n.id)) n.id = uid();   // guarantee unique ids for our maps
+      seen.add(n.id);
+      notes.push(n);
+    });
+
+    maxZ = 1;
+    notes.forEach(n => { maxZ = Math.max(maxZ, n.z || 1); });
+
+    boardName = (typeof data.boardName === "string") ? data.boardName.replace(/\s+/g, " ").trim() : "";
+    applyBoardName();
+
+    if (COLOR_IDS.has(data.activeColor)) setActiveColor(data.activeColor);
+
+    notes.forEach(renderNote);
+    refreshEmptyHint();
+    save();
+    toast(notes.length ? ("Board imported — " + (notes.length === 1 ? "1 note" : notes.length + " notes")) : "Imported an empty board");
+  }
+
   /* ---------------- dragging (the heart of the feel) ---------------- */
   let drag = null;
 
@@ -886,6 +1090,43 @@
   function openConfirm(){ confirmEl.hidden = false; document.getElementById("confirmCancel").focus(); }
   function closeConfirm(){ confirmEl.hidden = true; }
 
+  /* ---- export / import wiring ---- */
+  function openExport(){
+    document.getElementById("exportName").textContent = exportFilename();
+    exportEl.hidden = false;
+    document.getElementById("exportDownload").focus();
+  }
+  function closeExport(){ exportEl.hidden = true; }
+  function openImport(){ importEl.hidden = false; document.getElementById("importCancel").focus(); }
+  function closeImport(){ importEl.hidden = true; }
+  function openImportConfirm(){ importConfirmEl.hidden = false; document.getElementById("importConfirmCancel").focus(); }
+  function closeImportConfirm(){ importConfirmEl.hidden = true; }
+
+  document.getElementById("btnExport").addEventListener("click", openExport);
+  document.getElementById("btnImport").addEventListener("click", openImport);
+  document.getElementById("exportCancel").addEventListener("click", closeExport);
+  document.getElementById("exportDownload").addEventListener("click", () => { closeExport(); exportBoard(); });
+  exportEl.addEventListener("click", e => { if (e.target === exportEl) closeExport(); });
+
+  document.getElementById("importCancel").addEventListener("click", closeImport);
+  document.getElementById("importChoose").addEventListener("click", () => importFileInput.click());
+  importEl.addEventListener("click", e => { if (e.target === importEl) closeImport(); });
+  importFileInput.addEventListener("change", e => {
+    const file = e.target.files && e.target.files[0];
+    importFileInput.value = "";   // allow re-picking the same file later
+    if (!file) return;
+    closeImport();                // file chosen — the info modal's done; keep error toasts visible
+    handleImportFile(file);
+  });
+
+  document.getElementById("importConfirmCancel").addEventListener("click", () => { pendingImport = null; closeImportConfirm(); });
+  document.getElementById("importConfirmOk").addEventListener("click", () => {
+    const data = pendingImport; pendingImport = null;
+    closeImportConfirm();
+    applyImport(data);
+  });
+  importConfirmEl.addEventListener("click", e => { if (e.target === importConfirmEl){ pendingImport = null; closeImportConfirm(); } });
+
   /* ---------------- theme (dark / light) ---------------- */
   function applyTheme(next, persist){
     theme = (next === "light") ? "light" : "dark";
@@ -963,6 +1204,9 @@
     const ae = document.activeElement;
     const editing = !!(ae && ae.isContentEditable);
     if (e.key === "Escape"){
+      if (!importConfirmEl.hidden){ pendingImport = null; closeImportConfirm(); return; }
+      if (!exportEl.hidden){ closeExport(); return; }
+      if (!importEl.hidden){ closeImport(); return; }
       if (!confirmEl.hidden){ closeConfirm(); return; }
       if (!helpEl.hidden){ closeHelp(); return; }
       if (editing) ae.blur();
