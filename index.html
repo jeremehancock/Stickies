@@ -494,7 +494,8 @@
         <b>About storage:</b> notes live only in <b>this</b> browser via <code>localStorage</code>.
         They are <b>not</b> synced, shared between devices, or backed up — clearing your
         browser data (or opening a private window) starts you with a clean board.
-        Treat this as a scratchpad for ideas, not long-term storage.
+        Treat this as a scratchpad for ideas, not long-term storage.<br/><br/>Use the export/import option to save
+        your board.
       </p>
       <button class="close" id="helpClose">Got it</button>
     </div>
@@ -1266,7 +1267,7 @@
     addNote(W * 0.53, H * 0.30, { color:"blue",
       text:`Pick a color up top for new notes, or ${hov.toLowerCase()} a note to change its color.\n\n${hov} to find the × to delete — there's an Undo.` });
     addNote(W * 0.40, H * 0.55, { color:"pink",
-      text:"Heads up: notes live only in THIS browser (localStorage). Clear your browser data or switch devices and they're gone. Not synced, not backed up." });
+      text:"Heads up: notes live only in THIS browser (localStorage).\n\nUse the export/import option to save your board." });
   }
 
   /* ---------------- device-aware copy ---------------- */

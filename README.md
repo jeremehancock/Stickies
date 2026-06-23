@@ -5,7 +5,7 @@ step, no dependencies — just open `index.html` in a browser.
 
 ## Screenshot
 
-![stickies screenshot](screenshot.png)
+![stickies screenshot](screenshot-updated.png)
 
 ## Use it
 
