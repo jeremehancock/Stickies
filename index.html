@@ -322,11 +322,11 @@
     <div class="modal-card" role="dialog" aria-modal="true" aria-label="How it works">
       <h2>How it works</h2>
       <ul>
-        <li><b>Add</b> — double-click the board, or hit <b>+ Note</b>.</li>
-        <li><b>Type</b> — click a note and start writing.</li>
+        <li id="hAdd"><b>Add</b> — double-click the board, or hit <b>+ Note</b>.</li>
+        <li id="hType"><b>Type</b> — click a note and start writing.</li>
         <li><b>Move</b> — just drag it. It lifts, tilts and settles back.</li>
-        <li><b>Change Color</b> — hover a note and tap a color dot.</li>
-        <li><b>Delete</b> — hover a note and hit <b>×</b>.</li>
+        <li id="hColor"><b>Change Color</b> — hover a note and tap a color dot.</li>
+        <li id="hDelete"><b>Delete</b> — hover a note and hit <b>×</b>.</li>
         <li><b>Undo a delete</b> — tap <kbd>Undo</kbd> on the toast, or press <kbd>Ctrl/⌘</kbd>+<kbd>Z</kbd>.</li>
       </ul>
       <p class="storage">
@@ -374,6 +374,8 @@
   const toastWrap = document.getElementById("toasts");
   const helpEl    = document.getElementById("help");
   const confirmEl = document.getElementById("confirmClear");
+  const isTouch = matchMedia("(hover: none) and (pointer: coarse)").matches
+    || "ontouchstart" in window || navigator.maxTouchPoints > 0;
 
   let notes = [];                  // persisted source of truth
   const noteById = new Map();      // id -> note object
@@ -696,10 +698,19 @@
   }
 
   /* ---------------- board interactions ---------------- */
-  board.addEventListener("dblclick", e => {
-    if (e.target !== board) return;            // only on empty space
-    const note = addNote(e.clientX - NOTE_W / 2, e.clientY - 70);
-    focusNote(note);
+  // Create a note on a double-tap / double-click of empty board space.
+  // Uses pointer events rather than the native dblclick, which fires
+  // unreliably from touch across mobile browsers and device emulators.
+  let lastTapTime = 0, lastTapX = 0, lastTapY = 0;
+  board.addEventListener("pointerup", e => {
+    if (e.target !== board || drag) return;    // empty space only, never mid-drag
+    const near = Math.abs(e.clientX - lastTapX) < 28 && Math.abs(e.clientY - lastTapY) < 28;
+    if (e.timeStamp - lastTapTime < 400 && near){
+      lastTapTime = 0;
+      focusNote(addNote(e.clientX - NOTE_W / 2, e.clientY - 70));
+    } else {
+      lastTapTime = e.timeStamp; lastTapX = e.clientX; lastTapY = e.clientY;
+    }
   });
   board.addEventListener("pointerdown", e => {
     if (e.target !== board) return;            // tap empty space -> stop editing
@@ -810,16 +821,33 @@
   /* ---------------- starter notes ---------------- */
   function seedWelcome(){
     const W = board.clientWidth, H = board.clientHeight;
+    const dbl = isTouch ? "Double-tap" : "Double-click";
+    const tap = isTouch ? "Tap" : "Click";
+    const hov = isTouch ? "Tap" : "Hover";
     addNote(W * 0.30, H * 0.26, { color:"yellow",
-      text:"Welcome to Stickies 👋\n\n• Double-click the board to add a note\n• Drag to move — it lifts & tilts\n• Click to type" });
+      text:`Welcome to Stickies 👋\n\n• ${dbl} the board to add a note\n• Drag to move — it lifts & tilts\n• ${tap} to type` });
     addNote(W * 0.53, H * 0.30, { color:"blue",
-      text:"Pick a color up top for new notes, or hover a note to change its color.\n\nHover to find the × to delete — there's an Undo." });
+      text:`Pick a color up top for new notes, or ${hov.toLowerCase()} a note to change its color.\n\n${hov} to find the × to delete — there's an Undo.` });
     addNote(W * 0.40, H * 0.55, { color:"pink",
       text:"Heads up: notes live only in THIS browser (localStorage). Clear your browser data or switch devices and they're gone. Not synced, not backed up." });
   }
 
+  /* ---------------- device-aware copy ---------------- */
+  function applyDeviceCopy(){
+    emptyHint.textContent = isTouch
+      ? "Double-tap anywhere, or tap + Note, to add a note"
+      : "Double-click anywhere, or hit + Note, to add a note";
+    if (!isTouch) return;
+    const set = (id, html) => { const el = document.getElementById(id); if (el) el.innerHTML = html; };
+    set("hAdd",    "<b>Add</b> — double-tap the board, or tap <b>+ Note</b>.");
+    set("hType",   "<b>Type</b> — tap a note and start writing.");
+    set("hColor",  "<b>Change Color</b> — tap a note, then a color dot.");
+    set("hDelete", "<b>Delete</b> — tap a note, then hit <b>×</b>.");
+  }
+
   /* ---------------- init ---------------- */
   function init(){
+    applyDeviceCopy();
     const had = load();
     notes.forEach(n => { maxZ = Math.max(maxZ, n.z || 1); });
     setActiveColor(activeColor);
