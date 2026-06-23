@@ -48,9 +48,7 @@
     --swatch-ring: rgba(255,255,255,.92);
     --name-hover-bg: rgba(0,0,0,.06);
 
-    --badge-bg: rgba(255,255,255,.72);
-    --badge-border: rgba(0,0,0,.05);
-    --badge-text: rgba(0,0,0,.55);
+    --credit-text: rgba(0,0,0,.55);
 
     --panel-bg: #fff;
     --panel-heading: #1c1c20;
@@ -87,9 +85,7 @@
     --swatch-ring: rgba(255,255,255,.28);
     --name-hover-bg: rgba(255,255,255,.10);
 
-    --badge-bg: rgba(30,31,36,.72);
-    --badge-border: rgba(255,255,255,.08);
-    --badge-text: rgba(255,255,255,.55);
+    --credit-text: rgba(255,255,255,.55);
 
     --panel-bg: #202126;
     --panel-heading: #f3f4f6;
@@ -286,22 +282,26 @@
   [data-theme="dark"] #btnTheme .icon-moon{ display:none; }
   [data-theme="light"] #btnTheme .icon-sun{ display:none; }
 
-  /* ---------------- local-storage badge ---------------- */
-  .badge{
-    position:fixed; left:14px; bottom:12px; z-index:90000;
-    font-size:12px; color: var(--badge-text);
-    background: var(--badge-bg);
-    -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
-    padding:7px 11px; border-radius:10px;
-    border:1px solid var(--badge-border);
-    box-shadow: 0 4px 14px rgba(0,0,0,.08);
-    max-width: min(60vw, 360px);
-    display:flex; align-items:center; gap:7px;
+  /* ---------------- footer credit ---------------- */
+  .credit{
+    position:fixed; left:50%; bottom:10px; z-index:80000;
+    transform: translateX(-50%);
+    font-size:12px; color: var(--credit-text);
+    text-align:center; white-space:nowrap;
+    max-width: calc(100vw - 24px);
+    pointer-events:none;            /* let drags fall through to notes below */
   }
+  .credit a{
+    color: var(--text); font-weight:600; text-decoration:none;
+    pointer-events:auto;            /* but keep the link itself clickable */
+    border-bottom:1px solid var(--credit-text);
+    transition: color .15s ease, border-color .15s ease;
+  }
+  .credit a:hover{ color: var(--accent); border-bottom-color: var(--accent); }
 
   /* ---------------- toasts ---------------- */
   .toasts{
-    position:fixed; left:50%; bottom:18px; transform: translateX(-50%);
+    position:fixed; left:50%; bottom:44px; transform: translateX(-50%);
     z-index:120000; display:flex; flex-direction:column; gap:8px; align-items:center;
   }
   .toast{
@@ -428,12 +428,9 @@
     </div>
   </header>
 
-  <div class="badge" title="Your notes are stored with this browser's localStorage">
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-      <rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>
-    </svg>
-    <span>Saved only in this browser (localStorage) — not synced or backed up.</span>
-  </div>
+  <footer class="credit">
+    Built and maintained by <a href="https://jeremehancock.com" target="_blank" rel="noopener noreferrer">Jereme Hancock</a>
+  </footer>
 
   <div class="toasts" id="toasts" aria-live="polite"></div>
 
