@@ -3,6 +3,10 @@
 A sleek, single-file sticky-note whiteboard for quickly capturing ideas. No build
 step, no dependencies — just open `index.html` in a browser.
 
+## Screenshot
+
+![stickies screenshot](screenshot.png)
+
 ## Use it
 
 Open `index.html` (double-click the file, or serve the folder). That's it.
