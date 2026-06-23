@@ -18,6 +18,11 @@ Open `index.html` (double-click the file, or serve the folder). That's it.
   tab updates to match.
 - **Switch theme** — Stickies opens in **dark mode**; toggle light/dark with the
   sun/moon button in the top bar. Your choice is remembered on this device.
+- **Export / Import** — use the ↓ button to **export** the board to a
+  `stickies-<board-name>.json` file, and the ↑ button to **import** one back.
+  Each opens a short explainer first. ⚠️ **Importing completely overwrites** the
+  board stored in this browser — there's no undo — so export first if you want a
+  backup. The file is created locally; nothing is uploaded.
 
 Works with mouse and touch.
 
@@ -28,6 +33,9 @@ browser's **`localStorage`** — on **this** device, in **this** browser only. T
 are **not** synced across devices, shared, or backed up, and clearing your browser
 data (or using a private window) wipes them. This is meant as a scratchpad for
 ideas, not long-term storage.
+
+Need a backup, or want to carry a board to another browser or device? **Export**
+it to a JSON file and **Import** it wherever you like (see above).
 
 ## Built with
 
