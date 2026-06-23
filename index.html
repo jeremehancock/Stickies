@@ -1,0 +1,798 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<meta name="theme-color" content="#f3f4f6" />
+<title>Stickies — a sleek sticky note board</title>
+<style>
+  :root{
+    --ui-font: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, Roboto, Helvetica, Arial, sans-serif;
+    --note-font: "SF Pro Rounded", ui-rounded, "Segoe UI", system-ui, var(--ui-font);
+    --ink: #36352f;
+  }
+
+  /* ---- colour definitions (drive notes, swatches and dots) ---- */
+  [data-color="yellow"]{ --paper:#ffe79c; --paper-2:#fff4c4; --c:#ffd560; }
+  [data-color="pink"]  { --paper:#ffc4d6; --paper-2:#ffdbe6; --c:#ff8fb0; }
+  [data-color="green"] { --paper:#bcebbf; --paper-2:#d8f6da; --c:#7fd585; }
+  [data-color="blue"]  { --paper:#bfe1ff; --paper-2:#daefff; --c:#7cc0ff; }
+  [data-color="orange"]{ --paper:#ffd2a3; --paper-2:#ffe4c6; --c:#ffb066; }
+  [data-color="purple"]{ --paper:#e1ccff; --paper-2:#eee0ff; --c:#b794ff; }
+
+  *{ box-sizing: border-box; }
+  html, body{ margin:0; height:100%; }
+  body{
+    overflow:hidden;
+    font-family: var(--ui-font);
+    color:#222;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  body.dragging, body.dragging *{ cursor: grabbing !important; }
+  body.dragging{ user-select:none; }
+
+  /* ---------------- whiteboard ---------------- */
+  #board{
+    position:fixed; inset:0;
+    background:#f3f4f6;
+    background-image: radial-gradient(circle, rgba(0,0,0,.05) 1px, transparent 1.6px);
+    background-size: 24px 24px;
+    overflow:hidden;
+    touch-action: none;
+  }
+  #board::after{
+    content:""; position:absolute; inset:0; pointer-events:none;
+    background: radial-gradient(125% 125% at 50% 25%, transparent 58%, rgba(20,20,40,.06));
+  }
+
+  .empty-hint{
+    position:fixed; inset:0; display:grid; place-items:center;
+    pointer-events:none; padding:24px; text-align:center;
+    color: rgba(0,0,0,.28); font-size:20px; font-weight:500; letter-spacing:.2px;
+  }
+
+  /* ---------------- a sticky note ---------------- */
+  .note{
+    position:absolute; top:0; left:0; width:220px;
+    transform: translate3d(var(--x,0px), var(--y,0px), 0);
+    transition: transform 0s;            /* instant while dragging */
+    cursor: grab;
+    touch-action: none;
+    will-change: transform;
+  }
+  .note.settling{ transition: transform .45s cubic-bezier(.22,1,.36,1); }
+  .note.dragging{ cursor: grabbing; }
+
+  .note-inner{
+    position:relative;
+    border-radius:14px;
+    padding:16px 16px 18px;
+    min-height:182px;
+    color: var(--ink);
+    background:
+      linear-gradient(180deg, rgba(255,255,255,.55), rgba(255,255,255,0) 20%),
+      linear-gradient(165deg, var(--paper-2), var(--paper) 58%);
+    box-shadow:
+      0 8px 16px -6px rgba(20,20,40,.18),
+      0 2px 4px rgba(20,20,40,.08);
+    transform: rotate(var(--r,0deg)) scale(1);
+    transform-origin: 50% 50%;
+    transition: transform .55s cubic-bezier(.34,1.56,.64,1), box-shadow .3s ease;
+    will-change: transform;
+  }
+  .note:hover .note-inner{
+    box-shadow:
+      0 14px 26px -8px rgba(20,20,40,.24),
+      0 4px 8px -2px rgba(20,20,40,.12);
+  }
+  .note.dragging .note-inner{
+    transform: rotate(var(--r,0deg)) scale(1.05);
+    transition: box-shadow .2s ease;     /* tilt is driven instantly by JS */
+    box-shadow:
+      0 30px 52px -14px rgba(20,20,40,.36),
+      0 12px 20px -10px rgba(20,20,40,.22);
+  }
+
+  .note-body{
+    outline:none;
+    white-space: pre-wrap;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+    font: 17px/1.45 var(--note-font);
+    min-height:120px;
+  }
+  .note-body.is-empty::before{
+    content: attr(data-placeholder);
+    color: rgba(0,0,0,.30);
+    pointer-events:none;
+  }
+
+  /* per-note floating toolbar (recolour + delete) */
+  .note-tools{
+    position:absolute; top:-15px; left:50%;
+    display:flex; align-items:center; gap:6px;
+    padding:5px 8px;
+    background: rgba(255,255,255,.92);
+    -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+    border:1px solid rgba(0,0,0,.06);
+    border-radius:999px;
+    box-shadow: 0 6px 16px rgba(20,20,40,.16);
+    opacity:0; pointer-events:none;
+    transform: translate(-50%, 5px);
+    transition: opacity .16s ease, transform .16s ease;
+    user-select:none;
+  }
+  .note:hover .note-tools,
+  .note:focus-within .note-tools{
+    opacity:1; pointer-events:auto; transform: translate(-50%, 0);
+  }
+  .note.dragging .note-tools{ opacity:0 !important; pointer-events:none; }
+
+  .note-tools .dot{
+    width:15px; height:15px; padding:0; border-radius:50%;
+    border:1px solid rgba(0,0,0,.14); background: var(--c);
+    cursor:pointer; transition: transform .12s ease;
+  }
+  .note-tools .dot:hover{ transform: scale(1.22); }
+  .note-tools .sep{ width:1px; height:14px; background: rgba(0,0,0,.12); margin:0 1px; }
+  .note-tools .del{
+    width:19px; height:19px; padding:0; border:none; border-radius:50%;
+    background: rgba(0,0,0,.07); color:#000; cursor:pointer;
+    font-size:15px; line-height:1; display:grid; place-items:center;
+    transition: background .15s ease, color .15s ease;
+  }
+  .note-tools .del:hover{ background:#ff5d5d; color:#fff; }
+
+  /* ---------------- top toolbar ---------------- */
+  .bar{
+    position:fixed; z-index:100000; top:14px; left:50%;
+    transform: translateX(-50%);
+    display:flex; align-items:center; gap:14px;
+    padding:8px 10px 8px 16px;
+    background: rgba(255,255,255,.72);
+    -webkit-backdrop-filter: blur(16px) saturate(1.5);
+    backdrop-filter: blur(16px) saturate(1.5);
+    border:1px solid rgba(255,255,255,.7);
+    border-radius:16px;
+    box-shadow: 0 12px 32px -12px rgba(20,20,40,.30);
+    max-width: calc(100vw - 24px);
+  }
+  .brand{ display:flex; align-items:center; gap:9px; font-weight:650; letter-spacing:.2px; white-space:nowrap; }
+  .brand svg{ display:block; }
+  .swatches{ display:flex; gap:8px; padding:0 4px; }
+  .swatch{
+    width:21px; height:21px; padding:0; border-radius:50%;
+    border:2px solid rgba(255,255,255,.92); background: var(--c);
+    cursor:pointer; box-shadow: 0 1px 3px rgba(0,0,0,.20);
+    transition: transform .12s ease;
+  }
+  .swatch:hover{ transform: translateY(-2px) scale(1.07); }
+  .swatch.active{ outline:2px solid #26262b; outline-offset:2px; }
+  .actions{ display:flex; gap:6px; align-items:center; }
+  .btn{ border:none; cursor:pointer; border-radius:10px; font: inherit; color:#26262b; }
+  .btn.primary{ background:#26262b; color:#fff; padding:9px 15px; font-weight:600; }
+  .btn.primary:hover{ background:#000; }
+  .btn.primary:active{ transform: translateY(1px); }
+  .btn.icon{ width:35px; height:35px; background: rgba(0,0,0,.05); display:grid; place-items:center; }
+  .btn.icon:hover{ background: rgba(0,0,0,.10); }
+  .btn.icon svg{ display:block; }
+
+  /* ---------------- local-storage badge ---------------- */
+  .badge{
+    position:fixed; left:14px; bottom:12px; z-index:90000;
+    font-size:12px; color: rgba(0,0,0,.55);
+    background: rgba(255,255,255,.72);
+    -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+    padding:7px 11px; border-radius:10px;
+    border:1px solid rgba(0,0,0,.05);
+    box-shadow: 0 4px 14px rgba(0,0,0,.08);
+    max-width: min(60vw, 360px);
+    display:flex; align-items:center; gap:7px;
+  }
+
+  /* ---------------- toasts ---------------- */
+  .toasts{
+    position:fixed; left:50%; bottom:18px; transform: translateX(-50%);
+    z-index:120000; display:flex; flex-direction:column; gap:8px; align-items:center;
+  }
+  .toast{
+    display:flex; align-items:center; gap:12px;
+    background:#1f1f24; color:#fff;
+    padding:10px 12px 10px 16px; border-radius:12px;
+    box-shadow: 0 12px 32px rgba(0,0,0,.32);
+    font-size:14px; opacity:0; transform: translateY(10px);
+    transition: opacity .2s ease, transform .2s ease;
+  }
+  .toast.show{ opacity:1; transform: translateY(0); }
+  .toast button{
+    background:#3a3a42; color:#fff; border:none; border-radius:8px;
+    padding:6px 12px; cursor:pointer; font:inherit; font-weight:600;
+  }
+  .toast button:hover{ background:#52525c; }
+
+  /* ---------------- help modal ---------------- */
+  .modal{
+    position:fixed; inset:0; z-index:200000; display:grid; place-items:center;
+    background: rgba(20,20,30,.42);
+    -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
+  }
+  .modal[hidden]{ display:none; }
+  .modal-card{
+    width:min(460px, 92vw);
+    background:#fff; border-radius:18px; padding:24px 24px 20px;
+    box-shadow: 0 30px 80px rgba(0,0,0,.35);
+    animation: pop .25s ease;
+  }
+  .modal-card h2{ margin:0 0 12px; font-size:21px; }
+  .modal-card ul{ margin:0 0 14px; padding-left:20px; line-height:1.75; color:#333; }
+  .modal-card kbd{
+    background:#eef0f3; border:1px solid #d7dbe0; border-bottom-width:2px;
+    border-radius:6px; padding:1px 6px; font: 12px var(--ui-font); color:#333;
+  }
+  .modal-card .storage{
+    background:#f3f4f6; border-radius:10px; padding:11px 13px;
+    font-size:13px; color:#444; line-height:1.55;
+  }
+  .modal-card .close{
+    margin-top:16px; width:100%; background:#26262b; color:#fff;
+    border:none; padding:11px; border-radius:10px; cursor:pointer;
+    font:inherit; font-weight:600;
+  }
+  .modal-card .close:hover{ background:#000; }
+
+  /* ---------------- animations ---------------- */
+  @keyframes pop{ from{ opacity:0; transform: scale(.92) } to{ opacity:1; transform: scale(1) } }
+  @keyframes notePop{
+    0%  { opacity:0; transform: rotate(var(--r,0deg)) scale(.8); }
+    60% { opacity:1; transform: rotate(var(--r,0deg)) scale(1.04); }
+    100%{ opacity:1; transform: rotate(var(--r,0deg)) scale(1); }
+  }
+  @keyframes noteRemove{
+    to{ opacity:0; transform: rotate(var(--r,0deg)) scale(.6); }
+  }
+  .note.pop .note-inner{ animation: notePop .42s cubic-bezier(.2,.9,.3,1.2) both; }
+  .note.removing{ pointer-events:none; }
+  .note.removing .note-inner{ animation: noteRemove .26s ease forwards; }
+
+  @media (max-width: 560px){
+    .brand span{ display:none; }
+    .bar{ gap:10px; padding:8px; }
+  }
+  @media (prefers-reduced-motion: reduce){
+    .note-inner{ transition: box-shadow .2s ease; }
+    .note.pop .note-inner, .note.removing .note-inner{ animation-duration: .01s; }
+  }
+</style>
+</head>
+<body>
+
+  <main id="board" aria-label="Sticky note board"></main>
+
+  <div class="empty-hint" id="emptyHint">Double-click anywhere to add your first note</div>
+
+  <header class="bar">
+    <div class="brand">
+      <svg width="22" height="22" viewBox="0 0 22 22" fill="none" aria-hidden="true">
+        <rect x="2.5" y="3"   width="13" height="13" rx="2.5" fill="#ffd560" stroke="rgba(0,0,0,.12)"/>
+        <rect x="6.5" y="6.5" width="13" height="13" rx="2.5" fill="#7cc0ff" stroke="rgba(0,0,0,.12)"/>
+      </svg>
+      <span>Stickies</span>
+    </div>
+    <div class="swatches" id="swatches" role="group" aria-label="Colour for new notes"></div>
+    <div class="actions">
+      <button id="btnAdd" class="btn primary" title="Add a note (or double-click the board)">+ Note</button>
+      <button id="btnHelp" class="btn icon" title="How it works" aria-label="How it works">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <circle cx="12" cy="12" r="9"/><path d="M9.2 9.2a2.8 2.8 0 1 1 4 2.5c-.9.5-1.2 1-1.2 1.8"/><path d="M12 17h.01"/>
+        </svg>
+      </button>
+      <button id="btnClear" class="btn icon" title="Clear all notes" aria-label="Clear all notes">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 7h16"/><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/><path d="M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <div class="badge" title="Your notes are stored with this browser's localStorage">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>
+    </svg>
+    <span>Saved only in this browser (localStorage) — not synced or backed up.</span>
+  </div>
+
+  <div class="toasts" id="toasts" aria-live="polite"></div>
+
+  <div class="modal" id="help" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-label="How it works">
+      <h2>How it works</h2>
+      <ul>
+        <li><b>Add</b> — double-click the board, or hit <b>+ Note</b>.</li>
+        <li><b>Type</b> — click a note and start writing.</li>
+        <li><b>Move</b> — just drag it. It lifts, tilts and settles back.</li>
+        <li><b>Recolour</b> — hover a note and tap a colour dot.</li>
+        <li><b>Delete</b> — hover and hit <b>×</b> (with <kbd>Undo</kbd>, or <kbd>Ctrl/⌘</kbd>+<kbd>Z</kbd>).</li>
+      </ul>
+      <p class="storage">
+        <b>About storage:</b> notes live only in <b>this</b> browser via <code>localStorage</code>.
+        They are <b>not</b> synced, shared between devices, or backed up — clearing your
+        browser data (or opening a private window) starts you with a clean board.
+        Treat this as a scratchpad for ideas, not long-term storage.
+      </p>
+      <button class="close" id="helpClose">Got it</button>
+    </div>
+  </div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ---------------- config & state ---------------- */
+  const STORE_KEY = "stickies.board.v1";
+  const NOTE_W = 220;          // keep in sync with .note width
+  const DRAG_THRESHOLD = 5;    // px of movement before a press becomes a drag
+  const MARGIN = 8;            // keep notes this far inside the board
+  const PALETTE = [
+    { id:"yellow", label:"Yellow" },
+    { id:"pink",   label:"Pink"   },
+    { id:"green",  label:"Green"  },
+    { id:"blue",   label:"Blue"   },
+    { id:"orange", label:"Orange" },
+    { id:"purple", label:"Purple" },
+  ];
+
+  const board     = document.getElementById("board");
+  const swatchBar = document.getElementById("swatches");
+  const emptyHint = document.getElementById("emptyHint");
+  const toastWrap = document.getElementById("toasts");
+  const helpEl    = document.getElementById("help");
+
+  let notes = [];                  // persisted source of truth
+  const noteById = new Map();      // id -> note object
+  const view = new Map();          // id -> { el, inner, body }
+  let maxZ = 1;
+  let activeColor = "yellow";
+  const undoStack = [];
+
+  /* ---------------- helpers ---------------- */
+  const clamp = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
+
+  function uid(){
+    try { if (window.crypto && crypto.randomUUID) return crypto.randomUUID(); } catch(_){}
+    return "n" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  }
+
+  function getText(body){ return body.innerText.replace(/\n$/, ""); }
+  function setEmptyClass(body){ body.classList.toggle("is-empty", getText(body).trim().length === 0); }
+
+  function constrain(note, w, h){
+    const W = board.clientWidth, H = board.clientHeight;
+    w = w || NOTE_W; h = h || w;
+    note.x = clamp(note.x, MARGIN, Math.max(MARGIN, W - w - MARGIN));
+    note.y = clamp(note.y, MARGIN, Math.max(MARGIN, H - h - MARGIN));
+  }
+
+  function refreshEmptyHint(){ emptyHint.style.display = notes.length ? "none" : ""; }
+
+  /* ---------------- persistence ---------------- */
+  let saveTimer = null;
+  function save(){
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => {
+      try { localStorage.setItem(STORE_KEY, JSON.stringify({ notes, activeColor })); }
+      catch(e){ toast("Couldn't save — storage may be full or blocked."); }
+    }, 150);
+  }
+  function load(){
+    try {
+      const raw = localStorage.getItem(STORE_KEY);
+      if (!raw) return false;
+      const data = JSON.parse(raw);
+      if (!data || !Array.isArray(data.notes)) return false;
+      notes = data.notes;
+      if (data.activeColor) activeColor = data.activeColor;
+      return true;
+    } catch(e){ return false; }
+  }
+
+  /* ---------------- z-order & colour ---------------- */
+  function bringToFront(note){
+    note.z = ++maxZ;
+    const v = view.get(note.id);
+    if (v) v.el.style.zIndex = note.z;
+  }
+  function setColor(note, colorId){
+    note.color = colorId;
+    const v = view.get(note.id);
+    if (v) v.el.dataset.color = colorId;
+    save();
+  }
+
+  /* ---------------- rendering ---------------- */
+  function renderNote(note){
+    const el = document.createElement("div");
+    el.className = "note pop";
+    el.dataset.id = note.id;
+    el.dataset.color = note.color;
+    el.style.setProperty("--x", note.x + "px");
+    el.style.setProperty("--y", note.y + "px");
+    el.style.setProperty("--r", note.r + "deg");
+    el.style.zIndex = note.z;
+
+    const inner = document.createElement("div");
+    inner.className = "note-inner";
+
+    const tools = document.createElement("div");
+    tools.className = "note-tools";
+    PALETTE.forEach(c => {
+      const dot = document.createElement("button");
+      dot.className = "dot";
+      dot.dataset.color = c.id;
+      dot.title = c.label;
+      dot.setAttribute("aria-label", c.label);
+      dot.addEventListener("click", e => { e.stopPropagation(); setColor(note, c.id); });
+      tools.appendChild(dot);
+    });
+    const sep = document.createElement("span"); sep.className = "sep"; tools.appendChild(sep);
+    const del = document.createElement("button");
+    del.className = "del"; del.title = "Delete note"; del.setAttribute("aria-label", "Delete note");
+    del.innerHTML = "&times;";
+    del.addEventListener("click", e => { e.stopPropagation(); deleteNote(note.id); });
+    tools.appendChild(del);
+    // controls must never start a drag
+    tools.addEventListener("pointerdown", e => e.stopPropagation());
+
+    const body = document.createElement("div");
+    body.className = "note-body";
+    body.contentEditable = "true";
+    body.spellcheck = false;
+    body.setAttribute("data-placeholder", "Jot an idea…");
+    body.textContent = note.text || "";
+    setEmptyClass(body);
+    body.addEventListener("input", () => { note.text = getText(body); setEmptyClass(body); save(); });
+    body.addEventListener("paste", e => {
+      e.preventDefault();
+      const t = (e.clipboardData || window.clipboardData).getData("text");
+      try { document.execCommand("insertText", false, t); } catch(_){}
+    });
+
+    inner.appendChild(tools);
+    inner.appendChild(body);
+    el.appendChild(inner);
+    el.addEventListener("pointerdown", onNotePointerDown);
+    el.addEventListener("animationend", e => {
+      if (e.animationName === "notePop") el.classList.remove("pop");
+    });
+
+    board.appendChild(el);
+    noteById.set(note.id, note);
+    view.set(note.id, { el, inner, body });
+
+    // measure now that it's in the DOM, then keep it on-board
+    constrain(note, el.offsetWidth, el.offsetHeight);
+    el.style.setProperty("--x", note.x + "px");
+    el.style.setProperty("--y", note.y + "px");
+
+    refreshEmptyHint();
+    return el;
+  }
+
+  function addNote(x, y, opts){
+    opts = opts || {};
+    const note = {
+      id: uid(),
+      x: x, y: y,
+      r: (Math.random() * 6 - 3),       // gentle -3deg..3deg resting tilt
+      color: opts.color || activeColor,
+      text: opts.text || "",
+      z: ++maxZ,
+    };
+    notes.push(note);
+    renderNote(note);
+    save();
+    return note;
+  }
+
+  function focusNote(note){
+    const v = view.get(note.id);
+    if (v) v.body.focus();
+  }
+
+  function deleteNote(id){
+    const idx = notes.findIndex(n => n.id === id);
+    if (idx < 0) return;
+    undoStack.push({ note: Object.assign({}, notes[idx]), index: idx });
+    notes.splice(idx, 1);
+    noteById.delete(id);
+    const v = view.get(id);
+    if (v){
+      const el = v.el;
+      el.classList.add("removing");
+      const done = () => { el.remove(); view.delete(id); refreshEmptyHint(); };
+      el.addEventListener("animationend", e => { if (e.animationName === "noteRemove") done(); }, { once:true });
+      setTimeout(() => { if (view.has(id)) done(); }, 400); // safety net
+    }
+    save();
+    toast("Note deleted", { label: "Undo", fn: undoDelete });
+  }
+
+  function undoDelete(){
+    const last = undoStack.pop();
+    if (!last) return;
+    const n = last.note;
+    n.z = ++maxZ;
+    notes.splice(Math.min(last.index, notes.length), 0, n);
+    renderNote(n);
+    save();
+  }
+
+  function clearAll(){
+    if (!notes.length) return;
+    if (!confirm("Remove all notes? This can't be undone.")) return;
+    notes.slice().forEach(n => {
+      const v = view.get(n.id);
+      if (v){
+        const el = v.el;
+        el.classList.add("removing");
+        el.addEventListener("animationend", () => el.remove(), { once:true });
+        setTimeout(() => el.remove(), 400);
+      }
+      view.delete(n.id);
+      noteById.delete(n.id);
+    });
+    notes = [];
+    undoStack.length = 0;
+    save();
+    refreshEmptyHint();
+  }
+
+  /* ---------------- dragging (the heart of the feel) ---------------- */
+  let drag = null;
+
+  function onNotePointerDown(e){
+    if (e.button != null && e.button !== 0) return;   // primary button / touch only
+    const el = e.currentTarget;
+    const note = noteById.get(el.dataset.id);
+    if (!note) return;
+
+    bringToFront(note);
+
+    drag = {
+      note, el,
+      startX: e.clientX, startY: e.clientY,
+      grabX: e.clientX - note.x, grabY: e.clientY - note.y,
+      px: e.clientX, py: e.clientY,
+      w: el.offsetWidth, h: el.offsetHeight,
+      lastX: note.x,
+      tilt: parseFloat(el.style.getPropertyValue("--r")) || note.r,
+      moving: false,
+      raf: 0,
+    };
+
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp);
+    window.addEventListener("pointercancel", onPointerUp);
+  }
+
+  function onPointerMove(e){
+    if (!drag) return;
+    drag.px = e.clientX;
+    drag.py = e.clientY;
+
+    if (!drag.moving){
+      const dx = e.clientX - drag.startX, dy = e.clientY - drag.startY;
+      if (dx*dx + dy*dy < DRAG_THRESHOLD * DRAG_THRESHOLD) return;  // still a click
+      // promote to a drag
+      drag.moving = true;
+      drag.el.classList.add("dragging");
+      document.body.classList.add("dragging");
+      const sel = window.getSelection && window.getSelection();
+      if (sel) sel.removeAllRanges();
+      const ae = document.activeElement;
+      if (ae && ae.classList && ae.classList.contains("note-body")) ae.blur();
+      drag.raf = requestAnimationFrame(tick);
+    }
+  }
+
+  function tick(){
+    if (!drag || !drag.moving) return;
+    const W = board.clientWidth, H = board.clientHeight;
+    let nx = clamp(drag.px - drag.grabX, MARGIN, Math.max(MARGIN, W - drag.w - MARGIN));
+    let ny = clamp(drag.py - drag.grabY, MARGIN, Math.max(MARGIN, H - drag.h - MARGIN));
+
+    // tilt toward the direction of travel, eased — gives the note "weight"
+    const vx = nx - drag.lastX;
+    drag.lastX = nx;
+    const target = clamp(vx * 0.35, -12, 12);
+    drag.tilt += (target - drag.tilt) * 0.25;
+
+    drag.note.x = nx; drag.note.y = ny;
+    const el = drag.el;
+    el.style.setProperty("--x", nx + "px");
+    el.style.setProperty("--y", ny + "px");
+    el.style.setProperty("--r", drag.tilt.toFixed(2) + "deg");
+
+    drag.raf = requestAnimationFrame(tick);
+  }
+
+  function onPointerUp(e){
+    window.removeEventListener("pointermove", onPointerMove);
+    window.removeEventListener("pointerup", onPointerUp);
+    window.removeEventListener("pointercancel", onPointerUp);
+    if (!drag) return;
+    const d = drag; drag = null;
+    cancelAnimationFrame(d.raf);
+
+    if (d.moving){
+      d.el.classList.remove("dragging");
+      document.body.classList.remove("dragging");
+      // spring back to the resting angle (CSS transition on .note-inner)
+      d.el.style.setProperty("--r", d.note.r + "deg");
+    } else {
+      // a click, not a drag -> edit, with the caret where you tapped
+      const v = view.get(d.note.id);
+      if (v){
+        v.body.focus();
+        placeCaret(v.body, e.clientX, e.clientY);
+      }
+    }
+    save();
+  }
+
+  function placeCaret(node, x, y){
+    try {
+      let range = null;
+      if (document.caretRangeFromPoint){
+        range = document.caretRangeFromPoint(x, y);
+      } else if (document.caretPositionFromPoint){
+        const p = document.caretPositionFromPoint(x, y);
+        if (p){ range = document.createRange(); range.setStart(p.offsetNode, p.offset); }
+      }
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      if (range && node.contains(range.startContainer)){
+        range.collapse(true);
+        sel.addRange(range);
+      } else {
+        const r = document.createRange();
+        r.selectNodeContents(node); r.collapse(false);
+        sel.addRange(r);
+      }
+    } catch(_){}
+  }
+
+  /* ---------------- board interactions ---------------- */
+  board.addEventListener("dblclick", e => {
+    if (e.target !== board) return;            // only on empty space
+    const note = addNote(e.clientX - NOTE_W / 2, e.clientY - 70);
+    focusNote(note);
+  });
+  board.addEventListener("pointerdown", e => {
+    if (e.target !== board) return;            // tap empty space -> stop editing
+    const ae = document.activeElement;
+    if (ae && ae.classList && ae.classList.contains("note-body")) ae.blur();
+  });
+
+  function addNoteCentered(){
+    const W = board.clientWidth, H = board.clientHeight;
+    const x = W / 2 - NOTE_W / 2 + (Math.random() * 60 - 30);
+    const y = H / 2 - 100 + (Math.random() * 40 - 20);
+    focusNote(addNote(x, y));
+  }
+
+  /* ---------------- toolbar / swatches ---------------- */
+  PALETTE.forEach(c => {
+    const b = document.createElement("button");
+    b.className = "swatch";
+    b.dataset.color = c.id;
+    b.title = c.label + " — colour for new notes";
+    b.setAttribute("aria-label", c.label);
+    b.addEventListener("click", () => setActiveColor(c.id));
+    swatchBar.appendChild(b);
+  });
+  function setActiveColor(id){
+    activeColor = id;
+    Array.prototype.forEach.call(swatchBar.children, s =>
+      s.classList.toggle("active", s.dataset.color === id));
+    save();
+  }
+
+  document.getElementById("btnAdd").addEventListener("click", addNoteCentered);
+  document.getElementById("btnClear").addEventListener("click", clearAll);
+  document.getElementById("btnHelp").addEventListener("click", openHelp);
+  document.getElementById("helpClose").addEventListener("click", closeHelp);
+  helpEl.addEventListener("click", e => { if (e.target === helpEl) closeHelp(); });
+  function openHelp(){ helpEl.hidden = false; }
+  function closeHelp(){ helpEl.hidden = true; }
+
+  /* ---------------- toasts ---------------- */
+  function toast(msg, action){
+    const t = document.createElement("div");
+    t.className = "toast";
+    const span = document.createElement("span");
+    span.textContent = msg;
+    t.appendChild(span);
+    let timer;
+    const dismiss = () => {
+      clearTimeout(timer);
+      t.classList.remove("show");
+      t.addEventListener("transitionend", () => t.remove(), { once:true });
+      setTimeout(() => t.remove(), 400);
+    };
+    if (action){
+      const b = document.createElement("button");
+      b.textContent = action.label;
+      b.addEventListener("click", () => { action.fn(); dismiss(); });
+      t.appendChild(b);
+    }
+    toastWrap.appendChild(t);
+    requestAnimationFrame(() => t.classList.add("show"));
+    timer = setTimeout(dismiss, 5000);
+  }
+
+  /* ---------------- keyboard ---------------- */
+  window.addEventListener("keydown", e => {
+    if (e.key === "Escape"){
+      if (!helpEl.hidden){ closeHelp(); return; }
+      const ae = document.activeElement;
+      if (ae && ae.classList && ae.classList.contains("note-body")) ae.blur();
+      return;
+    }
+    if ((e.metaKey || e.ctrlKey) && (e.key === "z" || e.key === "Z") && !e.shiftKey){
+      const ae = document.activeElement;
+      const editing = ae && ae.classList && ae.classList.contains("note-body");
+      if (!editing){ e.preventDefault(); undoDelete(); }   // don't fight text-undo
+    }
+  });
+
+  /* ---------------- keep notes on-board on resize ---------------- */
+  let resizeTimer;
+  window.addEventListener("resize", () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+      notes.forEach(n => {
+        const v = view.get(n.id);
+        if (!v) return;
+        const ox = n.x, oy = n.y;
+        constrain(n, v.el.offsetWidth, v.el.offsetHeight);
+        if (ox !== n.x || oy !== n.y){
+          v.el.classList.add("settling");
+          v.el.style.setProperty("--x", n.x + "px");
+          v.el.style.setProperty("--y", n.y + "px");
+          setTimeout(() => v.el.classList.remove("settling"), 460);
+        }
+      });
+      save();
+    }, 120);
+  });
+
+  /* ---------------- starter notes ---------------- */
+  function seedWelcome(){
+    const W = board.clientWidth, H = board.clientHeight;
+    addNote(W * 0.30, H * 0.26, { color:"yellow",
+      text:"Welcome to Stickies 👋\n\n• Double-click the board to add a note\n• Drag to move — it lifts & tilts\n• Click to type" });
+    addNote(W * 0.53, H * 0.30, { color:"blue",
+      text:"Pick a colour up top for new notes, or hover a note to recolour it.\n\nHover to find the × to delete — there's an Undo." });
+    addNote(W * 0.40, H * 0.55, { color:"pink",
+      text:"Heads up: notes live only in THIS browser (localStorage). Clear your browser data or switch devices and they're gone. Not synced, not backed up." });
+  }
+
+  /* ---------------- init ---------------- */
+  function init(){
+    const had = load();
+    notes.forEach(n => { maxZ = Math.max(maxZ, n.z || 1); });
+    setActiveColor(activeColor);
+    if (had && notes.length){
+      notes.forEach(renderNote);
+    } else {
+      notes = [];
+      seedWelcome();
+    }
+    refreshEmptyHint();
+  }
+  init();
+})();
+</script>
+</body>
+</html>
