@@ -406,7 +406,7 @@
       </svg>
       <span id="boardName" class="board-name" contenteditable="true" spellcheck="false"
             role="textbox" aria-label="Board name" title="Click to rename this board"
-            data-placeholder="Name this board">Stickies</span>
+            data-placeholder="Name this board"></span>
     </div>
     <div class="swatches" id="swatches" role="group" aria-label="Color for new notes"></div>
     <div class="actions">
@@ -461,7 +461,7 @@
   <div class="modal" id="confirmClear" hidden>
     <div class="modal-card confirm" role="alertdialog" aria-modal="true" aria-labelledby="confirmTitle" aria-describedby="confirmDesc">
       <h2 id="confirmTitle">Clear the board?</h2>
-      <p class="confirm-text" id="confirmDesc">This removes <b id="confirmCount">all notes</b> and can't be undone.</p>
+      <p class="confirm-text" id="confirmDesc">This removes <b>all notes</b>. It can't be undone.</p>
       <div class="confirm-actions">
         <button class="btn-cancel" id="confirmCancel">Cancel</button>
         <button class="btn-danger" id="confirmOk">Remove all</button>
@@ -476,7 +476,6 @@
   /* ---------------- config & state ---------------- */
   const STORE_KEY = "stickies.board.v1";
   const THEME_KEY = "stickies.theme";
-  const DEFAULT_NAME  = "Stickies";
   const DEFAULT_TITLE = "Stickies — a sleek sticky note board";
   const NOTE_W = 220;          // keep in sync with .note width
   const DRAG_THRESHOLD = 5;    // px of movement before a press becomes a drag
@@ -506,7 +505,7 @@
   const view = new Map();          // id -> { el, inner, body }
   let maxZ = 1;
   let activeColor = "yellow";
-  let boardName = DEFAULT_NAME;
+  let boardName = "";
   let theme = document.documentElement.getAttribute("data-theme") === "light" ? "light" : "dark";
   const undoStack = [];
 
@@ -685,9 +684,11 @@
 
   function requestClearAll(){
     if (!notes.length) return;
-    const countEl = document.getElementById("confirmCount");
-    if (countEl) countEl.textContent =
-      notes.length === 1 ? "this note" : ("all " + notes.length + " notes");
+    const countText = notes.length === 1 ? "this note" : ("all " + notes.length + " notes");
+    const descEl = document.getElementById("confirmDesc");
+    if (descEl) descEl.innerHTML = boardName.trim()
+      ? "This removes <b>" + countText + "</b> and clears the board name. It can't be undone."
+      : "This removes <b>" + countText + "</b>. It can't be undone.";
     openConfirm();
   }
 
@@ -705,6 +706,8 @@
     });
     notes = [];
     undoStack.length = 0;
+    boardName = "";
+    applyBoardName();          // back to the "Name this board" placeholder
     save();
     refreshEmptyHint();
   }
@@ -902,7 +905,7 @@
   /* ---------------- board name ---------------- */
   function syncTitle(){
     const n = boardName.trim();
-    document.title = (n && n !== DEFAULT_NAME) ? (n + " — Stickies") : DEFAULT_TITLE;
+    document.title = n ? (n + " — Stickies") : DEFAULT_TITLE;
   }
   function applyBoardName(){
     if (boardNameEl) boardNameEl.textContent = boardName;
