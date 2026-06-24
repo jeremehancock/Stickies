@@ -211,25 +211,36 @@
     word-break: break-word;
     overflow-wrap: anywhere;
     font: 17px/1.45 var(--note-font);
-    /* Notes are tilted, so a native scrollbar rasterizes jagged at an angle.
-       Hide it and hint at hidden text with a soft edge fade — a gradient has
-       no hard edges to alias, so it stays smooth at any tilt. */
+    /* A native scrollbar rasterizes jagged on a tilted note, so we hide it and
+       draw our own indicator (.note-scrollbar), which rotates cleanly. */
     scrollbar-width: none;                 /* Firefox */
-    -webkit-mask-image: linear-gradient(to bottom,
-      transparent 0, #000 var(--fade-top, 0px),
-      #000 calc(100% - var(--fade-bottom, 0px)), transparent 100%);
-    mask-image: linear-gradient(to bottom,
-      transparent 0, #000 var(--fade-top, 0px),
-      #000 calc(100% - var(--fade-bottom, 0px)), transparent 100%);
   }
   .note-body::-webkit-scrollbar{ width:0; height:0; }   /* Chrome / Safari */
-  .note-body.more-above{ --fade-top: 16px; }            /* text hidden above */
-  .note-body.more-below{ --fade-bottom: 16px; }         /* text hidden below */
   .note-body.is-empty::before{
     content: attr(data-placeholder);
     color: rgba(0,0,0,.30);
     pointer-events:none;
   }
+
+  /* custom scroll indicator: the thumb's size and position show where you are
+     and that there's more text above/below. Indicator only — pointer-events
+     stay off so it never blocks native scrolling or note dragging. */
+  .note-scrollbar{
+    position:absolute; top:14px; bottom:18px; right:6px; width:5px;
+    border-radius:6px;
+    background: rgba(0,0,0,.06);
+    opacity:0; transition: opacity .2s ease;
+    pointer-events:none;
+  }
+  .note.has-overflow .note-scrollbar{ opacity:1; }
+  .note-scrollbar > .thumb{
+    position:absolute; left:0; top:0; width:100%; min-height:22px;
+    border-radius:6px;
+    background: rgba(0,0,0,.28);
+    transition: background .15s ease;
+  }
+  .note:hover .note-scrollbar > .thumb,
+  .note.resizing .note-scrollbar > .thumb{ background: rgba(0,0,0,.4); }
 
   /* drag-to-resize grip (keeps notes within tidy sticky-note proportions) */
   .note-resize{
@@ -658,13 +669,19 @@
   function getText(body){ return body.innerText.replace(/\n$/, ""); }
   function setEmptyClass(body){ body.classList.toggle("is-empty", getText(body).trim().length === 0); }
 
-  // Tilted notes hide their scrollbar; fade the top/bottom edge to show there's
-  // more text that way (and neither edge when it all fits on the note).
-  function updateScrollFades(body){
+  // A native scrollbar renders jagged on a tilted note, so we draw our own.
+  // Size and place the thumb to reflect scroll position (and hide the whole
+  // indicator when the text fits). This is a cue only — scrolling stays native.
+  function updateScrollbar(el, body, track, thumb){
     const over = body.scrollHeight - body.clientHeight;
-    if (over <= 1){ body.classList.remove("more-above", "more-below"); return; }
-    body.classList.toggle("more-above", body.scrollTop > 1);
-    body.classList.toggle("more-below", body.scrollTop < over - 1);
+    if (over <= 1){ el.classList.remove("has-overflow"); return; }
+    el.classList.add("has-overflow");
+    const trackH = track.clientHeight;
+    let thumbH = Math.max(22, Math.min(trackH, Math.round(trackH * body.clientHeight / body.scrollHeight)));
+    const maxTop = trackH - thumbH;
+    const top = maxTop > 0 ? Math.round((body.scrollTop / over) * maxTop) : 0;
+    thumb.style.height = thumbH + "px";
+    thumb.style.transform = "translateY(" + top + "px)";
   }
 
   function constrain(note, w, h){
@@ -761,13 +778,21 @@
     body.setAttribute("data-placeholder", "Jot an idea…");
     body.textContent = note.text || "";
     setEmptyClass(body);
-    body.addEventListener("input", () => { note.text = getText(body); setEmptyClass(body); updateScrollFades(body); save(); });
-    body.addEventListener("scroll", () => updateScrollFades(body), { passive: true });
+    const refreshBar = () => updateScrollbar(el, body, scrollbar, thumb);
+    body.addEventListener("input", () => { note.text = getText(body); setEmptyClass(body); refreshBar(); save(); });
+    body.addEventListener("scroll", refreshBar, { passive: true });
     body.addEventListener("paste", e => {
       e.preventDefault();
       const t = (e.clipboardData || window.clipboardData).getData("text");
       try { document.execCommand("insertText", false, t); } catch(_){}
     });
+
+    const scrollbar = document.createElement("div");
+    scrollbar.className = "note-scrollbar";
+    scrollbar.setAttribute("aria-hidden", "true");
+    const thumb = document.createElement("div");
+    thumb.className = "thumb";
+    scrollbar.appendChild(thumb);
 
     const resizeHandle = document.createElement("div");
     resizeHandle.className = "note-resize";
@@ -779,6 +804,7 @@
 
     inner.appendChild(tools);
     inner.appendChild(body);
+    inner.appendChild(scrollbar);
     inner.appendChild(resizeHandle);
     el.appendChild(inner);
     el.addEventListener("pointerdown", onNotePointerDown);
@@ -788,14 +814,14 @@
 
     board.appendChild(el);
     noteById.set(note.id, note);
-    view.set(note.id, { el, inner, body });
+    view.set(note.id, { el, inner, body, scrollbar, thumb });
 
     // measure now that it's in the DOM, then keep it on-board
     constrain(note, el.offsetWidth, el.offsetHeight);
     el.style.setProperty("--x", note.x + "px");
     el.style.setProperty("--y", note.y + "px");
 
-    updateScrollFades(body);
+    refreshBar();
     refreshEmptyHint();
     return el;
   }
@@ -1132,8 +1158,7 @@
     e.preventDefault();
     bringToFront(note);
     resize = {
-      note, el,
-      body: el.querySelector(".note-body"),
+      note, el, v: view.get(note.id),
       startX: e.clientX, startY: e.clientY,
       startW: el.offsetWidth, startH: el.offsetHeight,
       aspect: el.offsetWidth / el.offsetHeight,        // preserve the note's proportions
@@ -1164,7 +1189,7 @@
     r.note.h = Math.round(h);
     r.el.style.setProperty("--w", r.note.w + "px");
     r.el.style.setProperty("--h", r.note.h + "px");
-    if (r.body) updateScrollFades(r.body);
+    if (r.v) updateScrollbar(r.v.el, r.v.body, r.v.scrollbar, r.v.thumb);
   }
 
   function onResizeUp(){
