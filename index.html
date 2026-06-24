@@ -211,27 +211,24 @@
     word-break: break-word;
     overflow-wrap: anywhere;
     font: 17px/1.45 var(--note-font);
-    padding-right:3px;
-    scrollbar-width: thin;
-    scrollbar-color: rgba(0,0,0,.24) transparent;
+    /* Notes are tilted, so a native scrollbar rasterizes jagged at an angle.
+       Hide it and hint at hidden text with a soft edge fade — a gradient has
+       no hard edges to alias, so it stays smooth at any tilt. */
+    scrollbar-width: none;                 /* Firefox */
+    -webkit-mask-image: linear-gradient(to bottom,
+      transparent 0, #000 var(--fade-top, 0px),
+      #000 calc(100% - var(--fade-bottom, 0px)), transparent 100%);
+    mask-image: linear-gradient(to bottom,
+      transparent 0, #000 var(--fade-top, 0px),
+      #000 calc(100% - var(--fade-bottom, 0px)), transparent 100%);
   }
+  .note-body::-webkit-scrollbar{ width:0; height:0; }   /* Chrome / Safari */
+  .note-body.more-above{ --fade-top: 16px; }            /* text hidden above */
+  .note-body.more-below{ --fade-bottom: 16px; }         /* text hidden below */
   .note-body.is-empty::before{
     content: attr(data-placeholder);
     color: rgba(0,0,0,.30);
     pointer-events:none;
-  }
-  /* a subtle scrollbar for notes whose text outgrows their height */
-  .note-body::-webkit-scrollbar{ width:9px; }
-  .note-body::-webkit-scrollbar-track{ background:transparent; }
-  .note-body::-webkit-scrollbar-thumb{
-    background: rgba(0,0,0,.22);
-    border-radius:9px;
-    border:2px solid transparent;
-    background-clip: padding-box;
-  }
-  .note-body::-webkit-scrollbar-thumb:hover{
-    background: rgba(0,0,0,.34);
-    background-clip: padding-box;
   }
 
   /* drag-to-resize grip (keeps notes within tidy sticky-note proportions) */
@@ -661,6 +658,15 @@
   function getText(body){ return body.innerText.replace(/\n$/, ""); }
   function setEmptyClass(body){ body.classList.toggle("is-empty", getText(body).trim().length === 0); }
 
+  // Tilted notes hide their scrollbar; fade the top/bottom edge to show there's
+  // more text that way (and neither edge when it all fits on the note).
+  function updateScrollFades(body){
+    const over = body.scrollHeight - body.clientHeight;
+    if (over <= 1){ body.classList.remove("more-above", "more-below"); return; }
+    body.classList.toggle("more-above", body.scrollTop > 1);
+    body.classList.toggle("more-below", body.scrollTop < over - 1);
+  }
+
   function constrain(note, w, h){
     const W = board.clientWidth, H = board.clientHeight;
     w = w || NOTE_W; h = h || w;
@@ -755,7 +761,8 @@
     body.setAttribute("data-placeholder", "Jot an idea…");
     body.textContent = note.text || "";
     setEmptyClass(body);
-    body.addEventListener("input", () => { note.text = getText(body); setEmptyClass(body); save(); });
+    body.addEventListener("input", () => { note.text = getText(body); setEmptyClass(body); updateScrollFades(body); save(); });
+    body.addEventListener("scroll", () => updateScrollFades(body), { passive: true });
     body.addEventListener("paste", e => {
       e.preventDefault();
       const t = (e.clipboardData || window.clipboardData).getData("text");
@@ -788,6 +795,7 @@
     el.style.setProperty("--x", note.x + "px");
     el.style.setProperty("--y", note.y + "px");
 
+    updateScrollFades(body);
     refreshEmptyHint();
     return el;
   }
@@ -1125,6 +1133,7 @@
     bringToFront(note);
     resize = {
       note, el,
+      body: el.querySelector(".note-body"),
       startX: e.clientX, startY: e.clientY,
       startW: el.offsetWidth, startH: el.offsetHeight,
       aspect: el.offsetWidth / el.offsetHeight,        // preserve the note's proportions
@@ -1155,6 +1164,7 @@
     r.note.h = Math.round(h);
     r.el.style.setProperty("--w", r.note.w + "px");
     r.el.style.setProperty("--h", r.note.h + "px");
+    if (r.body) updateScrollFades(r.body);
   }
 
   function onResizeUp(){
