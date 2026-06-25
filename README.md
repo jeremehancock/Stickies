@@ -30,7 +30,9 @@ Open `index.html` (double-click the file, or serve the folder). That's it.
   board stored in this browser — there's no undo — so export first if you want a
   backup. The file is created locally; nothing is uploaded.
 
-Works with mouse and touch.
+Works with mouse and touch. **On a touch device**, drag a note anywhere to move
+it, **tap** a note to edit or scroll its text (tap empty space when you're done),
+and drag the corner grip to resize.
 
 ## Storage
 
