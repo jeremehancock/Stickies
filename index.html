@@ -36,6 +36,22 @@
     }catch(e){}
   })();
 </script>
+
+<!--
+  Markdown rendering (optional — needs a network connection).
+  `marked` turns Markdown into HTML and `DOMPurify` sanitizes that HTML before it
+  is ever inserted into a note. Both are loaded from a CDN, so they only work when
+  the page is online/hosted. Opened straight from disk with no network they simply
+  fail to load and notes fall back to plain text — the script below handles their
+  absence gracefully. `defer` keeps them from blocking first paint; Subresource
+  Integrity hashes mean a tampered/altered file is refused (also falling back).
+-->
+<script defer src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"
+        integrity="sha384-/TQbtLCAerC3jgaim+N78RZSDYV7ryeoBCVqTuzRrFec2akfBkHS7ACQ3PQhvMVi"
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"
+        integrity="sha384-+VfUPEb0PdtChMwmBcBmykRMDd+v6D/oFmB3rZM/puCMDYcIvF968OimRh4KQY9a"
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <style>
   :root{
     --ui-font: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, Roboto, Helvetica, Arial, sans-serif;
@@ -221,6 +237,57 @@
     color: rgba(0,0,0,.30);
     pointer-events:none;
   }
+
+  /* ---- rendered Markdown (display mode only; editing shows raw source) ----
+     Notes are paper-colored in both themes, so these ink shades read well on
+     light and dark alike. Kept compact to suit small sticky notes. */
+  .note-body.markdown{ white-space: normal; }
+  .note-body.markdown > :first-child{ margin-top:0; }
+  .note-body.markdown > :last-child{ margin-bottom:0; }
+  .note-body.markdown h1,
+  .note-body.markdown h2,
+  .note-body.markdown h3,
+  .note-body.markdown h4,
+  .note-body.markdown h5,
+  .note-body.markdown h6{ margin:.5em 0 .3em; line-height:1.25; font-weight:700; }
+  .note-body.markdown h1{ font-size:1.5em; }
+  .note-body.markdown h2{ font-size:1.3em; }
+  .note-body.markdown h3{ font-size:1.14em; }
+  .note-body.markdown h4,
+  .note-body.markdown h5,
+  .note-body.markdown h6{ font-size:1em; }
+  .note-body.markdown p{ margin:.45em 0; }
+  .note-body.markdown ul,
+  .note-body.markdown ol{ margin:.45em 0; padding-left:1.4em; }
+  .note-body.markdown li{ margin:.15em 0; }
+  .note-body.markdown li > ul,
+  .note-body.markdown li > ol{ margin:.1em 0; }
+  .note-body.markdown li.task-list-item{ list-style:none; margin-left:-1.2em; }
+  .note-body.markdown input[type="checkbox"]{ margin:0 .45em 0 0; vertical-align:middle; }
+  .note-body.markdown a{ color:#0b62c4; text-decoration:underline; }
+  .note-body.markdown strong{ font-weight:700; }
+  .note-body.markdown em{ font-style:italic; }
+  .note-body.markdown del{ opacity:.7; }
+  .note-body.markdown code{
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size:.86em; background: rgba(0,0,0,.08);
+    padding:.1em .35em; border-radius:5px;
+  }
+  .note-body.markdown pre{
+    margin:.5em 0; padding:.6em .7em; border-radius:8px;
+    background: rgba(0,0,0,.08); overflow-x:auto; white-space:pre;
+  }
+  .note-body.markdown pre code{ background:none; padding:0; }
+  .note-body.markdown blockquote{
+    margin:.5em 0; padding:.1em .8em;
+    border-left:3px solid rgba(0,0,0,.22); color: rgba(0,0,0,.70);
+  }
+  .note-body.markdown hr{ border:none; border-top:1px solid rgba(0,0,0,.18); margin:.7em 0; }
+  .note-body.markdown img{ max-width:100%; height:auto; border-radius:6px; }
+  .note-body.markdown table{ border-collapse:collapse; margin:.5em 0; font-size:.92em; }
+  .note-body.markdown th,
+  .note-body.markdown td{ border:1px solid rgba(0,0,0,.18); padding:.25em .5em; }
+  .note-body.markdown th{ background: rgba(0,0,0,.05); }
 
   /* custom scroll indicator: the thumb's size and position show where you are
      and that there's more text above/below. Indicator only — pointer-events
@@ -412,6 +479,10 @@
     -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
   }
   .modal[hidden]{ display:none; }
+  /* The help modal is taller and changes height between tabs. Anchor it near the
+     top and let it grow downward, so switching tabs never shifts the tabs or the
+     "Got it" button (and tall content can scroll on short screens). */
+  #help{ align-items: start; padding: clamp(56px, 11vh, 120px) 12px 24px; overflow-y: auto; }
   .modal-card{
     width:min(460px, 92vw);
     background: var(--panel-bg); border-radius:18px; padding:24px 24px 20px;
@@ -428,6 +499,28 @@
     background: var(--panel-soft-bg); border-radius:10px; padding:11px 13px;
     font-size:13px; color: var(--panel-soft-text); line-height:1.55;
   }
+
+  /* tabbed help — show one topic at a time so the modal stays short (esp. mobile) */
+  .modal-card .tabs{
+    display:flex; gap:4px; margin:0 0 14px; padding:4px;
+    background: var(--panel-soft-bg); border-radius:11px;
+  }
+  .modal-card .tab{
+    flex:1 1 0; min-width:0;
+    border:none; background:transparent; cursor:pointer;
+    font:inherit; font-weight:600; font-size:13px; color: var(--panel-muted);
+    padding:7px 4px; border-radius:8px;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+    transition: background-color .15s ease, color .15s ease;
+  }
+  .modal-card .tab:hover{ color: var(--panel-heading); }
+  .modal-card .tab.active{
+    background: var(--panel-bg); color: var(--panel-heading);
+    box-shadow: 0 1px 4px rgba(0,0,0,.14);
+  }
+  .modal-card .tab-panel[hidden]{ display:none; }
+  .modal-card .tab-panel ul{ margin:0; }
+  .modal-card .tab-panel .storage{ margin-top:12px; }
   .modal-card .close{
     margin-top:16px; width:100%; background: var(--btn-primary-bg); color: var(--btn-primary-text);
     border:none; padding:11px; border-radius:10px; cursor:pointer;
@@ -480,6 +573,9 @@
     .board-name{ max-width:44vw; }
     .bar{ gap:9px 8px; padding:8px; top:10px; }
     .btn.primary{ padding:9px 13px; }
+    .modal-card{ padding:18px 16px 16px; }
+    .modal-card h2{ font-size:19px; }
+    .modal-card .tab{ font-size:12px; padding:7px 2px; }
   }
   @media (prefers-reduced-motion: reduce){
     .note-inner{ transition: box-shadow .2s ease; }
@@ -547,25 +643,44 @@
   <div class="modal" id="help" hidden>
     <div class="modal-card" role="dialog" aria-modal="true" aria-label="How it works">
       <h2>How it works</h2>
-      <ul>
-        <li id="hAdd"><b>Add</b> — double-click the board, or hit <b>+ Note</b>.</li>
-        <li id="hType"><b>Type</b> — click a note and start writing.</li>
-        <li><b>Move</b> — just drag it. It lifts, tilts and settles back.</li>
-        <li id="hResize"><b>Resize</b> — drag the corner grip. Notes keep their proportions; long text scrolls inside.</li>
-        <li id="hColor"><b>Change Color</b> — hover a note and tap a color dot.</li>
-        <li id="hDelete"><b>Delete</b> — hover a note and hit <b>×</b>.</li>
-        <li><b>Undo a delete</b> — tap <kbd>Undo</kbd> on the toast, or press <kbd>Ctrl/⌘</kbd>+<kbd>Z</kbd>.</li>
-        <li id="hRename"><b>Rename</b> — click the board name in the top bar and type.</li>
-        <li id="hTheme"><b>Theme</b> — toggle light &amp; dark from the top bar; dark is the default.</li>
-        <li id="hExport"><b>Export / Import</b> — back up this board to a <code>.json</code> file, or load one back in. Importing <b>replaces</b> everything on this device.</li>
-      </ul>
-      <p class="storage">
-        <b>About storage:</b> notes live only in <b>this</b> browser via <code>localStorage</code>.
-        They are <b>not</b> synced, shared between devices, or backed up — clearing your
-        browser data (or opening a private window) starts you with a clean board.
-        Treat this as a scratchpad for ideas, not long-term storage.<br/><br/>Use the export/import option to save
-        your board.
-      </p>
+      <div class="tabs" role="tablist" aria-label="Help topics">
+        <button class="tab active" role="tab" id="htab-basics" data-tab="basics" aria-controls="hpanel-basics" aria-selected="true">Basics</button>
+        <button class="tab" role="tab" id="htab-style" data-tab="style" aria-controls="hpanel-style" aria-selected="false" tabindex="-1">Style</button>
+        <button class="tab" role="tab" id="htab-manage" data-tab="manage" aria-controls="hpanel-manage" aria-selected="false" tabindex="-1">Manage</button>
+        <button class="tab" role="tab" id="htab-backup" data-tab="backup" aria-controls="hpanel-backup" aria-selected="false" tabindex="-1">Backup</button>
+      </div>
+      <div class="tab-panels">
+        <div class="tab-panel" id="hpanel-basics" data-tab="basics" role="tabpanel" aria-labelledby="htab-basics">
+          <ul>
+            <li id="hAdd"><b>Add</b> — double-click the board, or hit <b>+ Note</b>.</li>
+            <li id="hType"><b>Type</b> — click a note and start writing.</li>
+            <li><b>Move</b> — just drag it. It lifts, tilts and settles back.</li>
+            <li id="hResize"><b>Resize</b> — drag the corner grip. Notes keep their proportions; long text scrolls inside.</li>
+          </ul>
+        </div>
+        <div class="tab-panel" id="hpanel-style" data-tab="style" role="tabpanel" aria-labelledby="htab-style" hidden>
+          <ul>
+            <li id="hMarkdown" hidden><b>Markdown</b> — write Markdown (headings, <b>bold</b>, lists, links…). It renders when you click away; click back in to edit the source. <i>Online only.</i></li>
+            <li id="hColor"><b>Change Color</b> — hover a note and tap a color dot.</li>
+            <li id="hTheme"><b>Theme</b> — toggle light &amp; dark from the top bar; dark is the default.</li>
+          </ul>
+        </div>
+        <div class="tab-panel" id="hpanel-manage" data-tab="manage" role="tabpanel" aria-labelledby="htab-manage" hidden>
+          <ul>
+            <li id="hDelete"><b>Delete</b> — hover a note and hit <b>×</b>.</li>
+            <li><b>Undo a delete</b> — tap <kbd>Undo</kbd> on the toast, or press <kbd>Ctrl/⌘</kbd>+<kbd>Z</kbd>.</li>
+            <li id="hRename"><b>Rename</b> — click the board name in the top bar and type.</li>
+          </ul>
+        </div>
+        <div class="tab-panel" id="hpanel-backup" data-tab="backup" role="tabpanel" aria-labelledby="htab-backup" hidden>
+          <ul>
+            <li id="hExport"><b>Export / Import</b> — back up this board to a <code>.json</code> file, or load one back in. Importing <b>replaces</b> everything on this device.</li>
+          </ul>
+          <p class="storage">
+            <b>Storage:</b> notes are saved only in <b>this</b> browser (<code>localStorage</code>) — not synced, shared, or backed up. Clearing browser data or using a private window wipes them. Treat it as a scratchpad, and <b>Export</b> to keep a copy.
+          </p>
+        </div>
+      </div>
       <button class="close" id="helpClose">Got it</button>
     </div>
   </div>
@@ -722,6 +837,59 @@
       ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
   }
 
+  /* ---------------- markdown (optional, online only) ----------------
+     `marked` + `DOMPurify` are loaded from a CDN (see <head>) and may be absent
+     when the page runs offline / straight from disk. Everything here degrades to
+     plain text when they're missing, so the app never depends on them. A note's
+     stored text is always raw Markdown; it's rendered for display and shown as
+     raw source while you're editing it. */
+  function markdownAvailable(){
+    return !!(window.marked && (window.marked.parse || typeof window.marked === "function")
+           && window.DOMPurify && typeof window.DOMPurify.sanitize === "function");
+  }
+  // Markdown -> sanitized HTML string, or null if rendering isn't possible.
+  function renderMarkdownHtml(text){
+    if (!markdownAvailable()) return null;
+    try {
+      const parse = window.marked.parse || window.marked;
+      const dirty = parse(text == null ? "" : String(text), { gfm:true, breaks:true });
+      return window.DOMPurify.sanitize(dirty);   // strips scripts/handlers — matters for imported boards
+    } catch(_){ return null; }
+  }
+  // Put a note's raw Markdown into its body for editing.
+  function showRaw(body, note){
+    body.classList.remove("markdown");
+    body.textContent = note.text || "";
+    setEmptyClass(body);
+  }
+  // Show a note's rendered Markdown; falls back to raw text when unavailable.
+  function showRendered(body, note){
+    const html = renderMarkdownHtml(note.text);
+    if (html === null){ showRaw(body, note); return; }
+    body.classList.add("markdown");
+    body.innerHTML = html;
+    setEmptyClass(body);
+  }
+  // Paint a note's body for its current state: raw while focused, rendered otherwise.
+  function paintBody(body, note){
+    if (document.activeElement === body) showRaw(body, note);
+    else showRendered(body, note);
+  }
+  // Once the CDN libraries finish loading, upgrade every idle note to rendered
+  // Markdown and reveal the in-app hint. Notes being edited are left untouched.
+  function refreshAllMarkdown(){
+    if (!markdownAvailable()) return;
+    const hint = document.getElementById("hMarkdown");
+    if (hint) hint.hidden = false;
+    view.forEach((v, id) => {
+      if (document.activeElement === v.body) return;
+      const note = noteById.get(id);
+      if (!note) return;
+      showRendered(v.body, note);
+      updateScrollbar(v.el, v.body, v.scrollbar, v.thumb);
+    });
+  }
+
   /* ---------------- persistence ---------------- */
   let saveTimer = null;
   function save(){
@@ -801,11 +969,12 @@
     body.contentEditable = isTouch ? "false" : "true";   // touch: tap a note to enter edit mode
     body.spellcheck = false;
     body.setAttribute("data-placeholder", "Jot an idea…");
-    body.textContent = note.text || "";
-    setEmptyClass(body);
     const refreshBar = () => updateScrollbar(el, body, scrollbar, thumb);
+    paintBody(body, note);   // rendered Markdown when available, raw text otherwise
     body.addEventListener("input", () => { note.text = getText(body); setEmptyClass(body); refreshBar(); save(); });
     body.addEventListener("scroll", refreshBar, { passive: true });
+    // entering edit mode: swap rendered Markdown back to its editable raw source
+    body.addEventListener("focus", () => { if (body.classList.contains("markdown")) showRaw(body, note); });
     // when editing ends, drop any blank padding and return the note to the top
     body.addEventListener("blur", () => {
       const trimmed = trimPadding(getText(body));
@@ -815,6 +984,7 @@
         setEmptyClass(body);
         save();
       }
+      showRendered(body, note);         // leaving edit mode: render Markdown (raw-text fallback offline)
       body.scrollTop = 0;               // a scrolled long note resets to show its start
       if (isTouch){ body.contentEditable = "false"; el.classList.remove("editing"); }
       refreshBar();
@@ -1309,8 +1479,37 @@
   document.getElementById("btnHelp").addEventListener("click", openHelp);
   document.getElementById("helpClose").addEventListener("click", closeHelp);
   helpEl.addEventListener("click", e => { if (e.target === helpEl) closeHelp(); });
-  function openHelp(){ helpEl.hidden = false; }
+  function openHelp(){ showHelpTab("basics"); helpEl.hidden = false; }
   function closeHelp(){ helpEl.hidden = true; }
+
+  /* help is split into tabs so the modal stays short — switch which one shows */
+  const helpTablist = helpEl.querySelector(".tabs");
+  function showHelpTab(name){
+    helpEl.querySelectorAll(".tab").forEach(btn => {
+      const on = btn.dataset.tab === name;
+      btn.classList.toggle("active", on);
+      btn.setAttribute("aria-selected", on ? "true" : "false");
+      btn.tabIndex = on ? 0 : -1;
+    });
+    helpEl.querySelectorAll(".tab-panel").forEach(p => { p.hidden = p.dataset.tab !== name; });
+  }
+  if (helpTablist){
+    helpTablist.addEventListener("click", e => {
+      const btn = e.target.closest(".tab");
+      if (btn) showHelpTab(btn.dataset.tab);
+    });
+    // left/right arrows move between tabs (standard tablist keyboard behavior)
+    helpTablist.addEventListener("keydown", e => {
+      if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+      const tabs = Array.prototype.slice.call(helpEl.querySelectorAll(".tab"));
+      const cur = tabs.findIndex(t => t.classList.contains("active"));
+      if (cur < 0) return;
+      const next = e.key === "ArrowRight" ? (cur + 1) % tabs.length : (cur - 1 + tabs.length) % tabs.length;
+      showHelpTab(tabs[next].dataset.tab);
+      tabs[next].focus();
+      e.preventDefault();
+    });
+  }
 
   document.getElementById("confirmCancel").addEventListener("click", closeConfirm);
   document.getElementById("confirmOk").addEventListener("click", () => { closeConfirm(); performClearAll(); });
@@ -1478,6 +1677,9 @@
       text:`Pick a color up top for new notes, or ${hov.toLowerCase()} a note to change its color.\n\n${hov} to find the × to delete — there's an Undo.` });
     addNote(W * 0.40, H * 0.55, { color:"pink",
       text:"Heads up: notes live only in THIS browser (localStorage).\n\nUse the export/import option to save your board." });
+    // Markdown showcase — renders when online; shows the raw syntax offline.
+    addNote(W * 0.72, H * 0.26, { color:"green", w:300, h:360,
+      text:"## Try Markdown ✍️\n---\n### Headings\n# H1\n## H2\n### H3\n---\n- Bullet lists\n- Like this one\n---\n**Bold text** and *italic text*\n`inline code`\n~~strikethrough~~" });
   }
 
   /* ---------------- device-aware copy ---------------- */
@@ -1511,6 +1713,9 @@
       seedWelcome();
     }
     refreshEmptyHint();
+    // If the Markdown CDN libs load (online), upgrade notes from plain text to
+    // rendered Markdown once everything is ready. Offline, this is a no-op.
+    window.addEventListener("load", refreshAllMarkdown);
   }
   init();
 })();
