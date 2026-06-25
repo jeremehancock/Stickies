@@ -217,19 +217,24 @@
       0 12px 20px -10px rgba(20,20,40,.22);
   }
 
-  /* Edit mode. Show a text caret over the editable text (not the grab hand) so it
-     reads as "editing" — and dragging an editing note is disabled in JS (mirroring
-     touch), so a click that nudges a few px places the caret instead of moving the
-     note and blurring the field. Also drop the GPU-compositing hints (persistent
-     will-change + the 3D translate layer); those composited layers can keep Chrome
-     from repainting the caret on keyboard navigation. The 2D position (--x/--y) and
-     resting tilt (--r) are unchanged, so nothing moves. */
+  /* Edit mode. Show a text caret over the editable text (not the grab hand); and
+     dragging an editing note is disabled in JS (mirroring touch) so a click that
+     nudges a few px places the caret instead of moving the note. Crucially, Chrome
+     does not reliably paint the text caret inside a transformed element, so while
+     editing we strip every transform from the note's chain: position it with
+     left/top instead of translate, and drop the resting tilt. It rotates around its
+     centre, so it un-tilts in place; the tilt eases back on blur. */
   .note.editing{
     cursor: default;
     will-change: auto;
-    transform: translate(var(--x,0px), var(--y,0px));
+    transform: none;
+    left: var(--x, 0px);
+    top: var(--y, 0px);
   }
-  .note.editing .note-inner{ will-change: auto; }
+  /* Un-tilt quickly so the now-paintable caret shows almost immediately on click
+     (the caret only renders once the transform reaches `none`). The springy
+     re-tilt on blur keeps the base .note-inner transition. */
+  .note.editing .note-inner{ will-change: auto; transform: none; transition: transform .16s ease, box-shadow .3s ease; }
   .note.editing .note-body{ cursor: text; }
 
   .note-body{
