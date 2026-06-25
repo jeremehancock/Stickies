@@ -217,6 +217,18 @@
       0 12px 20px -10px rgba(20,20,40,.22);
   }
 
+  /* While a note is being edited, drop the GPU-compositing hints: the persistent
+     `will-change` layers and the 3D translate keep Chrome from repainting the text
+     caret as you click or arrow around — it blinks out and often never returns.
+     A note is static while you type, so these perf hints aren't needed here; the
+     drag/settle states still get them. The 2D position (--x/--y) and resting tilt
+     (--r) are unchanged, so nothing moves visually. */
+  .note.editing{
+    will-change: auto;
+    transform: translate(var(--x,0px), var(--y,0px));
+  }
+  .note.editing .note-inner{ will-change: auto; }
+
   .note-body{
     outline:none;
     flex:1 1 auto;
@@ -973,8 +985,15 @@
     paintBody(body, note);   // rendered Markdown when available, raw text otherwise
     body.addEventListener("input", () => { note.text = getText(body); setEmptyClass(body); refreshBar(); save(); });
     body.addEventListener("scroll", refreshBar, { passive: true });
-    // entering edit mode: swap rendered Markdown back to its editable raw source
-    body.addEventListener("focus", () => { if (body.classList.contains("markdown")) showRaw(body, note); });
+    // entering edit mode: mark the note editing (flattens compositing so the caret
+    // stays visible), swap rendered Markdown back to its editable raw source, then
+    // resync the scrollbar — the raw text can be taller or shorter than the rendered
+    // view, so the indicator must reflect the edit view rather than the stale one.
+    body.addEventListener("focus", () => {
+      el.classList.add("editing");
+      if (body.classList.contains("markdown")) showRaw(body, note);
+      refreshBar();
+    });
     // when editing ends, drop any blank padding and return the note to the top
     body.addEventListener("blur", () => {
       const trimmed = trimPadding(getText(body));
@@ -986,7 +1005,8 @@
       }
       showRendered(body, note);         // leaving edit mode: render Markdown (raw-text fallback offline)
       body.scrollTop = 0;               // a scrolled long note resets to show its start
-      if (isTouch){ body.contentEditable = "false"; el.classList.remove("editing"); }
+      el.classList.remove("editing");   // restore the GPU-compositing hints for smooth dragging
+      if (isTouch) body.contentEditable = "false";
       refreshBar();
     });
     body.addEventListener("paste", e => {
