@@ -159,7 +159,8 @@
 
   /* ---------------- a sticky note ---------------- */
   .note{
-    position:absolute; top:0; left:0; width:220px;
+    position:absolute; top:0; left:0;
+    width: var(--w, 240px); height: var(--h, 240px);
     transform: translate3d(var(--x,0px), var(--y,0px), 0);
     transition: transform 0s;            /* instant while dragging */
     cursor: grab;
@@ -171,9 +172,10 @@
 
   .note-inner{
     position:relative;
+    height:100%;
+    display:flex; flex-direction:column;
     border-radius:14px;
     padding:16px 16px 18px;
-    min-height:182px;
     color: var(--ink);
     background:
       linear-gradient(180deg, rgba(255,255,255,.55), rgba(255,255,255,0) 20%),
@@ -201,16 +203,64 @@
 
   .note-body{
     outline:none;
+    flex:1 1 auto;
+    min-height:0;
+    overflow-y:auto;
+    overscroll-behavior: contain;
     white-space: pre-wrap;
     word-break: break-word;
     overflow-wrap: anywhere;
     font: 17px/1.45 var(--note-font);
-    min-height:120px;
+    /* A native scrollbar rasterizes jagged on a tilted note, so we hide it and
+       draw our own indicator (.note-scrollbar), which rotates cleanly. */
+    scrollbar-width: none;                 /* Firefox */
   }
+  .note-body::-webkit-scrollbar{ width:0; height:0; }   /* Chrome / Safari */
   .note-body.is-empty::before{
     content: attr(data-placeholder);
     color: rgba(0,0,0,.30);
     pointer-events:none;
+  }
+
+  /* custom scroll indicator: the thumb's size and position show where you are
+     and that there's more text above/below. Indicator only — pointer-events
+     stay off so it never blocks native scrolling or note dragging. */
+  .note-scrollbar{
+    position:absolute; top:14px; bottom:18px; right:6px; width:5px;
+    border-radius:6px;
+    background: rgba(0,0,0,.06);
+    opacity:0; transition: opacity .2s ease;
+    pointer-events:none;
+  }
+  .note.has-overflow .note-scrollbar{ opacity:1; }
+  .note-scrollbar > .thumb{
+    position:absolute; left:0; top:0; width:100%; min-height:22px;
+    border-radius:6px;
+    background: rgba(0,0,0,.28);
+    transition: background .15s ease;
+  }
+  .note:hover .note-scrollbar > .thumb,
+  .note.resizing .note-scrollbar > .thumb{ background: rgba(0,0,0,.4); }
+
+  /* drag-to-resize grip (keeps notes within tidy sticky-note proportions) */
+  .note-resize{
+    position:absolute; right:3px; bottom:3px;
+    width:18px; height:18px;
+    display:grid; place-items:center;
+    color: rgba(0,0,0,.4);
+    cursor: nwse-resize;
+    opacity:0; transform: scale(.8);
+    transition: opacity .16s ease, transform .16s ease, color .15s ease;
+    touch-action:none;
+  }
+  .note-resize svg{ display:block; }
+  .note:hover .note-resize,
+  .note:focus-within .note-resize{ opacity:.7; transform: scale(1); }
+  .note-resize:hover{ opacity:1 !important; color: rgba(0,0,0,.7); }
+  .note.resizing .note-resize{ opacity:1 !important; color: rgba(0,0,0,.7); }
+  .note.dragging .note-resize{ opacity:0 !important; pointer-events:none; }
+  @media (hover: none){
+    .note-resize{ opacity:.6; transform: scale(1); }
   }
 
   /* per-note floating toolbar (recolor + delete) */
@@ -483,6 +533,7 @@
         <li id="hAdd"><b>Add</b> — double-click the board, or hit <b>+ Note</b>.</li>
         <li id="hType"><b>Type</b> — click a note and start writing.</li>
         <li><b>Move</b> — just drag it. It lifts, tilts and settles back.</li>
+        <li id="hResize"><b>Resize</b> — drag the corner grip. Notes keep their proportions; long text scrolls inside.</li>
         <li id="hColor"><b>Change Color</b> — hover a note and tap a color dot.</li>
         <li id="hDelete"><b>Delete</b> — hover a note and hit <b>×</b>.</li>
         <li><b>Undo a delete</b> — tap <kbd>Undo</kbd> on the toast, or press <kbd>Ctrl/⌘</kbd>+<kbd>Z</kbd>.</li>
@@ -567,7 +618,10 @@
   const STORE_KEY = "stickies.board.v1";
   const THEME_KEY = "stickies.theme";
   const DEFAULT_TITLE = "Stickies — a sleek sticky note board";
-  const NOTE_W = 220;          // keep in sync with .note width
+  const NOTE_W = 240;          // default note width  (keep in sync with .note --w)
+  const NOTE_H = 240;          // default note height (keep in sync with .note --h)
+  const NOTE_MIN = 160;        // smallest a note can be resized to
+  const NOTE_MAX = 360;        // largest a note can be resized to
   const DRAG_THRESHOLD = 5;    // px of movement before a press becomes a drag
   const MARGIN = 8;            // keep notes this far inside the board
   const PALETTE = [
@@ -614,6 +668,27 @@
 
   function getText(body){ return body.innerText.replace(/\n$/, ""); }
   function setEmptyClass(body){ body.classList.toggle("is-empty", getText(body).trim().length === 0); }
+
+  // Strip blank lines (and stray whitespace) padded above or below the text so
+  // the text always sits at the top of the note. Blank lines *between* text are
+  // kept — that's real spacing the user added.
+  function trimPadding(s){ return (s == null ? "" : String(s)).trim(); }
+
+  // A native scrollbar renders jagged on a tilted note, so we draw our own.
+  // Show it only when the text overflows the note, then size and place the thumb
+  // to reflect scroll position. Indicator only — scrolling stays native. Since
+  // blank padding is trimmed away, overflow here reflects only real text.
+  function updateScrollbar(el, body, track, thumb){
+    const over = body.scrollHeight - body.clientHeight;
+    if (over <= 1){ el.classList.remove("has-overflow"); return; }
+    el.classList.add("has-overflow");
+    const trackH = track.clientHeight;
+    const thumbH = Math.max(22, Math.min(trackH, Math.round(trackH * body.clientHeight / body.scrollHeight)));
+    const maxTop = trackH - thumbH;
+    const top = maxTop > 0 ? Math.round((body.scrollTop / over) * maxTop) : 0;
+    thumb.style.height = thumbH + "px";
+    thumb.style.transform = "translateY(" + top + "px)";
+  }
 
   function constrain(note, w, h){
     const W = board.clientWidth, H = board.clientHeight;
@@ -666,12 +741,17 @@
 
   /* ---------------- rendering ---------------- */
   function renderNote(note){
+    if (!note.w) note.w = NOTE_W;       // legacy notes saved before resizing existed
+    if (!note.h) note.h = NOTE_H;
+    note.text = trimPadding(note.text);  // never carry blank padding above/below the text
     const el = document.createElement("div");
     el.className = "note pop";
     el.dataset.id = note.id;
     el.dataset.color = note.color;
     el.style.setProperty("--x", note.x + "px");
     el.style.setProperty("--y", note.y + "px");
+    el.style.setProperty("--w", note.w + "px");
+    el.style.setProperty("--h", note.h + "px");
     el.style.setProperty("--r", note.r + "deg");
     el.style.zIndex = note.z;
 
@@ -705,15 +785,46 @@
     body.setAttribute("data-placeholder", "Jot an idea…");
     body.textContent = note.text || "";
     setEmptyClass(body);
-    body.addEventListener("input", () => { note.text = getText(body); setEmptyClass(body); save(); });
+    const refreshBar = () => updateScrollbar(el, body, scrollbar, thumb);
+    body.addEventListener("input", () => { note.text = getText(body); setEmptyClass(body); refreshBar(); save(); });
+    body.addEventListener("scroll", refreshBar, { passive: true });
+    // when editing ends, drop any blank padding and return the note to the top
+    body.addEventListener("blur", () => {
+      const trimmed = trimPadding(getText(body));
+      if (trimmed !== getText(body)){
+        body.textContent = trimmed;
+        note.text = trimmed;
+        setEmptyClass(body);
+        save();
+      }
+      body.scrollTop = 0;               // a scrolled long note resets to show its start
+      refreshBar();
+    });
     body.addEventListener("paste", e => {
       e.preventDefault();
       const t = (e.clipboardData || window.clipboardData).getData("text");
       try { document.execCommand("insertText", false, t); } catch(_){}
     });
 
+    const scrollbar = document.createElement("div");
+    scrollbar.className = "note-scrollbar";
+    scrollbar.setAttribute("aria-hidden", "true");
+    const thumb = document.createElement("div");
+    thumb.className = "thumb";
+    scrollbar.appendChild(thumb);
+
+    const resizeHandle = document.createElement("div");
+    resizeHandle.className = "note-resize";
+    resizeHandle.setAttribute("aria-hidden", "true");
+    resizeHandle.title = "Drag to resize";
+    resizeHandle.innerHTML =
+      '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M11 4.5 4.5 11M11 8.5 8.5 11"/></svg>';
+    resizeHandle.addEventListener("pointerdown", e => onResizePointerDown(e, note, el));
+
     inner.appendChild(tools);
     inner.appendChild(body);
+    inner.appendChild(scrollbar);
+    inner.appendChild(resizeHandle);
     el.appendChild(inner);
     el.addEventListener("pointerdown", onNotePointerDown);
     el.addEventListener("animationend", e => {
@@ -722,13 +833,14 @@
 
     board.appendChild(el);
     noteById.set(note.id, note);
-    view.set(note.id, { el, inner, body });
+    view.set(note.id, { el, inner, body, scrollbar, thumb });
 
     // measure now that it's in the DOM, then keep it on-board
     constrain(note, el.offsetWidth, el.offsetHeight);
     el.style.setProperty("--x", note.x + "px");
     el.style.setProperty("--y", note.y + "px");
 
+    refreshBar();
     refreshEmptyHint();
     return el;
   }
@@ -741,6 +853,8 @@
       r: (Math.random() * 6 - 3),       // gentle -3deg..3deg resting tilt
       color: opts.color || activeColor,
       text: opts.text || "",
+      w: opts.w || NOTE_W,
+      h: opts.h || NOTE_H,
       z: ++maxZ,
     };
     notes.push(note);
@@ -839,6 +953,8 @@
         r: +(+n.r).toFixed(2),
         color: n.color,
         text: n.text,
+        w: Math.round(n.w || NOTE_W),
+        h: Math.round(n.h || NOTE_H),
         z: n.z,
       })),
     };
@@ -862,6 +978,7 @@
   function sanitizeNote(n){
     if (!n || typeof n !== "object") return null;
     const num = (v, d) => Number.isFinite(+v) ? +v : d;
+    const size = (v, d) => clamp(Math.round(num(v, d)), NOTE_MIN, NOTE_MAX);
     return {
       id: (typeof n.id === "string" && n.id) ? n.id : uid(),
       x: num(n.x, Math.random() * 200 + 40),
@@ -869,6 +986,8 @@
       r: clamp(num(n.r, Math.random() * 6 - 3), -8, 8),
       color: COLOR_IDS.has(n.color) ? n.color : "yellow",
       text: typeof n.text === "string" ? n.text : (n.text == null ? "" : String(n.text)),
+      w: size(n.w, NOTE_W),
+      h: size(n.h, NOTE_H),
       z: num(n.z, 1),
     };
   }
@@ -1047,6 +1166,62 @@
         sel.addRange(r);
       }
     } catch(_){}
+  }
+
+  /* ---------------- resizing (drag the corner grip) ---------------- */
+  let resize = null;
+
+  function onResizePointerDown(e, note, el){
+    if (e.button != null && e.button !== 0) return;   // primary button / touch only
+    e.stopPropagation();                              // never let this start a note drag
+    e.preventDefault();
+    bringToFront(note);
+    resize = {
+      note, el, v: view.get(note.id),
+      startX: e.clientX, startY: e.clientY,
+      startW: el.offsetWidth, startH: el.offsetHeight,
+      aspect: el.offsetWidth / el.offsetHeight,        // preserve the note's proportions
+    };
+    el.classList.add("resizing");
+    const ae = document.activeElement;                 // resizing isn't editing
+    if (ae && ae.classList && ae.classList.contains("note-body")) ae.blur();
+    window.addEventListener("pointermove", onResizeMove);
+    window.addEventListener("pointerup", onResizeUp);
+    window.addEventListener("pointercancel", onResizeUp);
+  }
+
+  function onResizeMove(e){
+    if (!resize) return;
+    const r = resize;
+    // a bottom-right grip: average the two axes so the corner scales smoothly
+    const delta = ((e.clientX - r.startX) + (e.clientY - r.startY)) / 2;
+    let w = clamp(r.startW + delta, NOTE_MIN, NOTE_MAX);
+    let h = w / r.aspect;
+    if (h > NOTE_MAX){ h = NOTE_MAX; w = h * r.aspect; }
+    if (h < NOTE_MIN){ h = NOTE_MIN; w = h * r.aspect; }
+    // keep the note on the board (its top-left corner stays put while resizing)
+    const maxW = Math.max(NOTE_MIN, board.clientWidth  - MARGIN - r.note.x);
+    const maxH = Math.max(NOTE_MIN, board.clientHeight - MARGIN - r.note.y);
+    if (w > maxW){ w = maxW; h = w / r.aspect; }
+    if (h > maxH){ h = maxH; w = h * r.aspect; }
+    r.note.w = Math.round(w);
+    r.note.h = Math.round(h);
+    r.el.style.setProperty("--w", r.note.w + "px");
+    r.el.style.setProperty("--h", r.note.h + "px");
+    if (r.v) updateScrollbar(r.v.el, r.v.body, r.v.scrollbar, r.v.thumb);
+  }
+
+  function onResizeUp(){
+    window.removeEventListener("pointermove", onResizeMove);
+    window.removeEventListener("pointerup", onResizeUp);
+    window.removeEventListener("pointercancel", onResizeUp);
+    if (!resize) return;
+    const r = resize; resize = null;
+    r.el.classList.remove("resizing");
+    constrain(r.note, r.el.offsetWidth, r.el.offsetHeight);   // tidy up if it hit an edge
+    r.el.style.setProperty("--x", r.note.x + "px");
+    r.el.style.setProperty("--y", r.note.y + "px");
+    save();
   }
 
   /* ---------------- board interactions ---------------- */
@@ -1279,6 +1454,7 @@
     const set = (id, html) => { const el = document.getElementById(id); if (el) el.innerHTML = html; };
     set("hAdd",    "<b>Add</b> — double-tap the board, or tap <b>+ Note</b>.");
     set("hType",   "<b>Type</b> — tap a note and start writing.");
+    set("hResize", "<b>Resize</b> — drag the corner grip. Notes keep their proportions; long text scrolls inside.");
     set("hColor",  "<b>Change Color</b> — tap a note, then a color dot.");
     set("hDelete", "<b>Delete</b> — tap a note, then hit <b>×</b>.");
     set("hRename", "<b>Rename</b> — tap the board name in the top bar and type.");
