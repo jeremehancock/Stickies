@@ -242,15 +242,6 @@
   .note:hover .note-scrollbar > .thumb,
   .note.resizing .note-scrollbar > .thumb{ background: rgba(0,0,0,.4); }
 
-  /* off-screen helper for measuring a note's real (trimmed) text height */
-  .note-measure{
-    position:absolute; top:-9999px; left:-9999px;
-    box-sizing:content-box; padding:0; border:0;
-    white-space:pre-wrap; word-break:break-word; overflow-wrap:anywhere;
-    font:17px/1.45 var(--note-font);
-    pointer-events:none; visibility:hidden;
-  }
-
   /* drag-to-resize grip (keeps notes within tidy sticky-note proportions) */
   .note-resize{
     position:absolute; right:3px; bottom:3px;
@@ -678,43 +669,23 @@
   function getText(body){ return body.innerText.replace(/\n$/, ""); }
   function setEmptyClass(body){ body.classList.toggle("is-empty", getText(body).trim().length === 0); }
 
-  // Off-screen element used to measure how tall a note's text actually is.
-  let measureEl = null;
-  function measurer(){
-    if (!measureEl){
-      measureEl = document.createElement("div");
-      measureEl.className = "note-measure";
-      measureEl.setAttribute("aria-hidden", "true");
-      board.appendChild(measureEl);
-    }
-    return measureEl;
-  }
-
-  // True only when the real text is taller than the note. Blank lines padded
-  // above or below the text are trimmed first, so empty space alone never
-  // triggers the scrollbar (blank lines *between* text still count).
-  function textOverflows(body){
-    const trimmed = (body.innerText || "").replace(/^\s+|\s+$/g, "");
-    if (!trimmed) return false;
-    const m = measurer();
-    m.style.width = body.clientWidth + "px";
-    m.textContent = trimmed;
-    return m.scrollHeight > body.clientHeight + 1;
-  }
+  // Strip blank lines (and stray whitespace) padded above or below the text so
+  // the text always sits at the top of the note. Blank lines *between* text are
+  // kept — that's real spacing the user added.
+  function trimPadding(s){ return (s == null ? "" : String(s)).trim(); }
 
   // A native scrollbar renders jagged on a tilted note, so we draw our own.
-  // Show it only when the real text overflows, then size and place the thumb to
-  // reflect scroll position. Indicator only — scrolling stays native. Pass
-  // remeasure=false to just reposition the thumb (e.g. on scroll) without
-  // re-running the text measurement.
-  function updateScrollbar(el, body, track, thumb, remeasure){
-    if (remeasure !== false) el.classList.toggle("has-overflow", textOverflows(body));
-    if (!el.classList.contains("has-overflow")) return;
+  // Show it only when the text overflows the note, then size and place the thumb
+  // to reflect scroll position. Indicator only — scrolling stays native. Since
+  // blank padding is trimmed away, overflow here reflects only real text.
+  function updateScrollbar(el, body, track, thumb){
+    const over = body.scrollHeight - body.clientHeight;
+    if (over <= 1){ el.classList.remove("has-overflow"); return; }
+    el.classList.add("has-overflow");
     const trackH = track.clientHeight;
     const thumbH = Math.max(22, Math.min(trackH, Math.round(trackH * body.clientHeight / body.scrollHeight)));
-    const over = body.scrollHeight - body.clientHeight;
     const maxTop = trackH - thumbH;
-    const top = (over > 0 && maxTop > 0) ? Math.round((body.scrollTop / over) * maxTop) : 0;
+    const top = maxTop > 0 ? Math.round((body.scrollTop / over) * maxTop) : 0;
     thumb.style.height = thumbH + "px";
     thumb.style.transform = "translateY(" + top + "px)";
   }
@@ -772,6 +743,7 @@
   function renderNote(note){
     if (!note.w) note.w = NOTE_W;       // legacy notes saved before resizing existed
     if (!note.h) note.h = NOTE_H;
+    note.text = trimPadding(note.text);  // never carry blank padding above/below the text
     const el = document.createElement("div");
     el.className = "note pop";
     el.dataset.id = note.id;
@@ -813,9 +785,20 @@
     body.setAttribute("data-placeholder", "Jot an idea…");
     body.textContent = note.text || "";
     setEmptyClass(body);
-    const refreshBar = remeasure => updateScrollbar(el, body, scrollbar, thumb, remeasure);
-    body.addEventListener("input", () => { note.text = getText(body); setEmptyClass(body); refreshBar(true); save(); });
-    body.addEventListener("scroll", () => refreshBar(false), { passive: true });
+    const refreshBar = () => updateScrollbar(el, body, scrollbar, thumb);
+    body.addEventListener("input", () => { note.text = getText(body); setEmptyClass(body); refreshBar(); save(); });
+    body.addEventListener("scroll", refreshBar, { passive: true });
+    // when editing ends, drop any blank padding so the text settles at the top
+    body.addEventListener("blur", () => {
+      const trimmed = trimPadding(getText(body));
+      if (trimmed !== getText(body)){
+        body.textContent = trimmed;       // also resets scrollTop, seating text at the top
+        note.text = trimmed;
+        setEmptyClass(body);
+        save();
+      }
+      refreshBar();
+    });
     body.addEventListener("paste", e => {
       e.preventDefault();
       const t = (e.clipboardData || window.clipboardData).getData("text");
@@ -856,7 +839,7 @@
     el.style.setProperty("--x", note.x + "px");
     el.style.setProperty("--y", note.y + "px");
 
-    refreshBar(true);
+    refreshBar();
     refreshEmptyHint();
     return el;
   }
@@ -1224,7 +1207,7 @@
     r.note.h = Math.round(h);
     r.el.style.setProperty("--w", r.note.w + "px");
     r.el.style.setProperty("--h", r.note.h + "px");
-    if (r.v) updateScrollbar(r.v.el, r.v.body, r.v.scrollbar, r.v.thumb, true);
+    if (r.v) updateScrollbar(r.v.el, r.v.body, r.v.scrollbar, r.v.thumb);
   }
 
   function onResizeUp(){
