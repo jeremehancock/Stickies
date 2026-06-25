@@ -1601,6 +1601,9 @@
       text:`Pick a color up top for new notes, or ${hov.toLowerCase()} a note to change its color.\n\n${hov} to find the × to delete — there's an Undo.` });
     addNote(W * 0.40, H * 0.55, { color:"pink",
       text:"Heads up: notes live only in THIS browser (localStorage).\n\nUse the export/import option to save your board." });
+    // Markdown showcase — renders when online; shows the raw syntax offline.
+    addNote(W * 0.72, H * 0.26, { color:"green", w:300, h:360,
+      text:"## Try Markdown ✍️\n---\n### Headings\n# H1\n## H2\n### H3\n---\n- Bullet lists\n- Like this one\n---\n**Bold text** and *italic text*\n`inline code`\n~~strikethrough~~" });
   }
 
   /* ---------------- device-aware copy ---------------- */
