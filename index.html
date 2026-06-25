@@ -263,6 +263,24 @@
     .note-resize{ opacity:.6; transform: scale(1); }
   }
 
+  /* ---- touch: drag anywhere to move; tap a note to edit/scroll its text ---- */
+  /* object mode — the whole note is a clean drag surface (no caret/selection) */
+  .touch .note-body{
+    touch-action: none;
+    -webkit-user-select: none; user-select: none;
+  }
+  /* edit mode — the tapped note becomes editable and scrolls natively */
+  .touch .note.editing .note-body{
+    touch-action: pan-y;
+    -webkit-user-select: text; user-select: text;
+  }
+  /* a finger-friendly resize target in the corner */
+  .touch .note-resize{
+    width:30px; height:30px; right:0; bottom:0;
+    place-items:end; padding:0 5px 5px 0;
+  }
+  .touch .note-resize svg{ width:14px; height:14px; }
+
   /* per-note floating toolbar (recolor + delete) */
   .note-tools{
     position:absolute; top:-15px; left:50%;
@@ -780,7 +798,7 @@
 
     const body = document.createElement("div");
     body.className = "note-body";
-    body.contentEditable = "true";
+    body.contentEditable = isTouch ? "false" : "true";   // touch: tap a note to enter edit mode
     body.spellcheck = false;
     body.setAttribute("data-placeholder", "Jot an idea…");
     body.textContent = note.text || "";
@@ -798,6 +816,7 @@
         save();
       }
       body.scrollTop = 0;               // a scrolled long note resets to show its start
+      if (isTouch){ body.contentEditable = "false"; el.classList.remove("editing"); }
       refreshBar();
     });
     body.addEventListener("paste", e => {
@@ -863,10 +882,26 @@
     return note;
   }
 
-  function focusNote(note){
+  // Enter edit mode for a note and focus it. On touch this flips the body to
+  // editable + natively scrollable (.editing); on desktop it's just focus.
+  function enterEdit(note, x, y){
     const v = view.get(note.id);
-    if (v) v.body.focus();
+    if (!v) return;
+    if (isTouch){
+      v.body.contentEditable = "true";
+      v.el.classList.add("editing");
+    }
+    v.body.focus();
+    if (x != null && y != null){
+      placeCaret(v.body, x, y);
+    } else {
+      try {
+        const r = document.createRange(); r.selectNodeContents(v.body); r.collapse(false);
+        const s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+      } catch(_){}
+    }
   }
+  function focusNote(note){ enterEdit(note); }
 
   function deleteNote(id){
     const idx = notes.findIndex(n => n.id === id);
@@ -1062,6 +1097,10 @@
     const note = noteById.get(el.dataset.id);
     if (!note) return;
 
+    // On touch, a note being edited owns its own touches (native caret + scroll).
+    // Tap empty space to finish, then drag the note to move it.
+    if (isTouch && el.classList.contains("editing")) return;
+
     bringToFront(note);
 
     drag = {
@@ -1136,12 +1175,8 @@
       // spring back to the resting angle (CSS transition on .note-inner)
       d.el.style.setProperty("--r", d.note.r + "deg");
     } else {
-      // a click, not a drag -> edit, with the caret where you tapped
-      const v = view.get(d.note.id);
-      if (v){
-        v.body.focus();
-        placeCaret(v.body, e.clientX, e.clientY);
-      }
+      // a tap/click, not a drag -> edit, with the caret where you tapped
+      enterEdit(d.note, e.clientX, e.clientY);
     }
     save();
   }
@@ -1453,7 +1488,7 @@
     if (!isTouch) return;
     const set = (id, html) => { const el = document.getElementById(id); if (el) el.innerHTML = html; };
     set("hAdd",    "<b>Add</b> — double-tap the board, or tap <b>+ Note</b>.");
-    set("hType",   "<b>Type</b> — tap a note and start writing.");
+    set("hType",   "<b>Type</b> — tap a note to write or scroll its text; tap out when done.");
     set("hResize", "<b>Resize</b> — drag the corner grip. Notes keep their proportions; long text scrolls inside.");
     set("hColor",  "<b>Change Color</b> — tap a note, then a color dot.");
     set("hDelete", "<b>Delete</b> — tap a note, then hit <b>×</b>.");
@@ -1463,6 +1498,7 @@
   /* ---------------- init ---------------- */
   function init(){
     applyDeviceCopy();
+    if (isTouch) document.documentElement.classList.add("touch");
     const had = load();
     notes.forEach(n => { maxZ = Math.max(maxZ, n.z || 1); });
     setActiveColor(activeColor);
