@@ -479,6 +479,10 @@
     -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
   }
   .modal[hidden]{ display:none; }
+  /* The help modal is taller and changes height between tabs. Anchor it near the
+     top and let it grow downward, so switching tabs never shifts the tabs or the
+     "Got it" button (and tall content can scroll on short screens). */
+  #help{ align-items: start; padding: clamp(56px, 11vh, 120px) 12px 24px; overflow-y: auto; }
   .modal-card{
     width:min(460px, 92vw);
     background: var(--panel-bg); border-radius:18px; padding:24px 24px 20px;
@@ -495,6 +499,28 @@
     background: var(--panel-soft-bg); border-radius:10px; padding:11px 13px;
     font-size:13px; color: var(--panel-soft-text); line-height:1.55;
   }
+
+  /* tabbed help — show one topic at a time so the modal stays short (esp. mobile) */
+  .modal-card .tabs{
+    display:flex; gap:4px; margin:0 0 14px; padding:4px;
+    background: var(--panel-soft-bg); border-radius:11px;
+  }
+  .modal-card .tab{
+    flex:1 1 0; min-width:0;
+    border:none; background:transparent; cursor:pointer;
+    font:inherit; font-weight:600; font-size:13px; color: var(--panel-muted);
+    padding:7px 4px; border-radius:8px;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+    transition: background-color .15s ease, color .15s ease;
+  }
+  .modal-card .tab:hover{ color: var(--panel-heading); }
+  .modal-card .tab.active{
+    background: var(--panel-bg); color: var(--panel-heading);
+    box-shadow: 0 1px 4px rgba(0,0,0,.14);
+  }
+  .modal-card .tab-panel[hidden]{ display:none; }
+  .modal-card .tab-panel ul{ margin:0; }
+  .modal-card .tab-panel .storage{ margin-top:12px; }
   .modal-card .close{
     margin-top:16px; width:100%; background: var(--btn-primary-bg); color: var(--btn-primary-text);
     border:none; padding:11px; border-radius:10px; cursor:pointer;
@@ -547,6 +573,9 @@
     .board-name{ max-width:44vw; }
     .bar{ gap:9px 8px; padding:8px; top:10px; }
     .btn.primary{ padding:9px 13px; }
+    .modal-card{ padding:18px 16px 16px; }
+    .modal-card h2{ font-size:19px; }
+    .modal-card .tab{ font-size:12px; padding:7px 2px; }
   }
   @media (prefers-reduced-motion: reduce){
     .note-inner{ transition: box-shadow .2s ease; }
@@ -614,26 +643,44 @@
   <div class="modal" id="help" hidden>
     <div class="modal-card" role="dialog" aria-modal="true" aria-label="How it works">
       <h2>How it works</h2>
-      <ul>
-        <li id="hAdd"><b>Add</b> — double-click the board, or hit <b>+ Note</b>.</li>
-        <li id="hType"><b>Type</b> — click a note and start writing.</li>
-        <li id="hMarkdown" hidden><b>Format</b> — write in <b>Markdown</b> (headings, <b>bold</b>, lists, links…). It renders when you click away; click back in to edit the source. <i>Online only.</i></li>
-        <li><b>Move</b> — just drag it. It lifts, tilts and settles back.</li>
-        <li id="hResize"><b>Resize</b> — drag the corner grip. Notes keep their proportions; long text scrolls inside.</li>
-        <li id="hColor"><b>Change Color</b> — hover a note and tap a color dot.</li>
-        <li id="hDelete"><b>Delete</b> — hover a note and hit <b>×</b>.</li>
-        <li><b>Undo a delete</b> — tap <kbd>Undo</kbd> on the toast, or press <kbd>Ctrl/⌘</kbd>+<kbd>Z</kbd>.</li>
-        <li id="hRename"><b>Rename</b> — click the board name in the top bar and type.</li>
-        <li id="hTheme"><b>Theme</b> — toggle light &amp; dark from the top bar; dark is the default.</li>
-        <li id="hExport"><b>Export / Import</b> — back up this board to a <code>.json</code> file, or load one back in. Importing <b>replaces</b> everything on this device.</li>
-      </ul>
-      <p class="storage">
-        <b>About storage:</b> notes live only in <b>this</b> browser via <code>localStorage</code>.
-        They are <b>not</b> synced, shared between devices, or backed up — clearing your
-        browser data (or opening a private window) starts you with a clean board.
-        Treat this as a scratchpad for ideas, not long-term storage.<br/><br/>Use the export/import option to save
-        your board.
-      </p>
+      <div class="tabs" role="tablist" aria-label="Help topics">
+        <button class="tab active" role="tab" id="htab-basics" data-tab="basics" aria-controls="hpanel-basics" aria-selected="true">Basics</button>
+        <button class="tab" role="tab" id="htab-style" data-tab="style" aria-controls="hpanel-style" aria-selected="false" tabindex="-1">Style</button>
+        <button class="tab" role="tab" id="htab-manage" data-tab="manage" aria-controls="hpanel-manage" aria-selected="false" tabindex="-1">Manage</button>
+        <button class="tab" role="tab" id="htab-backup" data-tab="backup" aria-controls="hpanel-backup" aria-selected="false" tabindex="-1">Backup</button>
+      </div>
+      <div class="tab-panels">
+        <div class="tab-panel" id="hpanel-basics" data-tab="basics" role="tabpanel" aria-labelledby="htab-basics">
+          <ul>
+            <li id="hAdd"><b>Add</b> — double-click the board, or hit <b>+ Note</b>.</li>
+            <li id="hType"><b>Type</b> — click a note and start writing.</li>
+            <li><b>Move</b> — just drag it. It lifts, tilts and settles back.</li>
+            <li id="hResize"><b>Resize</b> — drag the corner grip. Notes keep their proportions; long text scrolls inside.</li>
+          </ul>
+        </div>
+        <div class="tab-panel" id="hpanel-style" data-tab="style" role="tabpanel" aria-labelledby="htab-style" hidden>
+          <ul>
+            <li id="hMarkdown" hidden><b>Markdown</b> — write Markdown (headings, <b>bold</b>, lists, links…). It renders when you click away; click back in to edit the source. <i>Online only.</i></li>
+            <li id="hColor"><b>Change Color</b> — hover a note and tap a color dot.</li>
+            <li id="hTheme"><b>Theme</b> — toggle light &amp; dark from the top bar; dark is the default.</li>
+          </ul>
+        </div>
+        <div class="tab-panel" id="hpanel-manage" data-tab="manage" role="tabpanel" aria-labelledby="htab-manage" hidden>
+          <ul>
+            <li id="hDelete"><b>Delete</b> — hover a note and hit <b>×</b>.</li>
+            <li><b>Undo a delete</b> — tap <kbd>Undo</kbd> on the toast, or press <kbd>Ctrl/⌘</kbd>+<kbd>Z</kbd>.</li>
+            <li id="hRename"><b>Rename</b> — click the board name in the top bar and type.</li>
+          </ul>
+        </div>
+        <div class="tab-panel" id="hpanel-backup" data-tab="backup" role="tabpanel" aria-labelledby="htab-backup" hidden>
+          <ul>
+            <li id="hExport"><b>Export / Import</b> — back up this board to a <code>.json</code> file, or load one back in. Importing <b>replaces</b> everything on this device.</li>
+          </ul>
+          <p class="storage">
+            <b>Storage:</b> notes are saved only in <b>this</b> browser (<code>localStorage</code>) — not synced, shared, or backed up. Clearing browser data or using a private window wipes them. Treat it as a scratchpad, and <b>Export</b> to keep a copy.
+          </p>
+        </div>
+      </div>
       <button class="close" id="helpClose">Got it</button>
     </div>
   </div>
@@ -1432,8 +1479,37 @@
   document.getElementById("btnHelp").addEventListener("click", openHelp);
   document.getElementById("helpClose").addEventListener("click", closeHelp);
   helpEl.addEventListener("click", e => { if (e.target === helpEl) closeHelp(); });
-  function openHelp(){ helpEl.hidden = false; }
+  function openHelp(){ showHelpTab("basics"); helpEl.hidden = false; }
   function closeHelp(){ helpEl.hidden = true; }
+
+  /* help is split into tabs so the modal stays short — switch which one shows */
+  const helpTablist = helpEl.querySelector(".tabs");
+  function showHelpTab(name){
+    helpEl.querySelectorAll(".tab").forEach(btn => {
+      const on = btn.dataset.tab === name;
+      btn.classList.toggle("active", on);
+      btn.setAttribute("aria-selected", on ? "true" : "false");
+      btn.tabIndex = on ? 0 : -1;
+    });
+    helpEl.querySelectorAll(".tab-panel").forEach(p => { p.hidden = p.dataset.tab !== name; });
+  }
+  if (helpTablist){
+    helpTablist.addEventListener("click", e => {
+      const btn = e.target.closest(".tab");
+      if (btn) showHelpTab(btn.dataset.tab);
+    });
+    // left/right arrows move between tabs (standard tablist keyboard behavior)
+    helpTablist.addEventListener("keydown", e => {
+      if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+      const tabs = Array.prototype.slice.call(helpEl.querySelectorAll(".tab"));
+      const cur = tabs.findIndex(t => t.classList.contains("active"));
+      if (cur < 0) return;
+      const next = e.key === "ArrowRight" ? (cur + 1) % tabs.length : (cur - 1 + tabs.length) % tabs.length;
+      showHelpTab(tabs[next].dataset.tab);
+      tabs[next].focus();
+      e.preventDefault();
+    });
+  }
 
   document.getElementById("confirmCancel").addEventListener("click", closeConfirm);
   document.getElementById("confirmOk").addEventListener("click", () => { closeConfirm(); performClearAll(); });
