@@ -217,6 +217,26 @@
       0 12px 20px -10px rgba(20,20,40,.22);
   }
 
+  /* Edit mode. Show a text caret over the editable text (not the grab hand); and
+     dragging an editing note is disabled in JS (mirroring touch) so a click that
+     nudges a few px places the caret instead of moving the note. Crucially, Chrome
+     does not reliably paint the text caret inside a transformed element, so while
+     editing we strip every transform from the note's chain: position it with
+     left/top instead of translate, and drop the resting tilt. It rotates around its
+     centre, so it un-tilts in place; the tilt eases back on blur. */
+  .note.editing{
+    cursor: default;
+    will-change: auto;
+    transform: none;
+    left: var(--x, 0px);
+    top: var(--y, 0px);
+  }
+  /* Un-tilt quickly so the now-paintable caret shows almost immediately on click
+     (the caret only renders once the transform reaches `none`). The springy
+     re-tilt on blur keeps the base .note-inner transition. */
+  .note.editing .note-inner{ will-change: auto; transform: none; transition: transform .16s ease, box-shadow .3s ease; }
+  .note.editing .note-body{ cursor: text; }
+
   .note-body{
     outline:none;
     flex:1 1 auto;
@@ -973,8 +993,15 @@
     paintBody(body, note);   // rendered Markdown when available, raw text otherwise
     body.addEventListener("input", () => { note.text = getText(body); setEmptyClass(body); refreshBar(); save(); });
     body.addEventListener("scroll", refreshBar, { passive: true });
-    // entering edit mode: swap rendered Markdown back to its editable raw source
-    body.addEventListener("focus", () => { if (body.classList.contains("markdown")) showRaw(body, note); });
+    // entering edit mode: mark the note editing (flattens compositing so the caret
+    // stays visible), swap rendered Markdown back to its editable raw source, then
+    // resync the scrollbar — the raw text can be taller or shorter than the rendered
+    // view, so the indicator must reflect the edit view rather than the stale one.
+    body.addEventListener("focus", () => {
+      el.classList.add("editing");
+      if (body.classList.contains("markdown")) showRaw(body, note);
+      refreshBar();
+    });
     // when editing ends, drop any blank padding and return the note to the top
     body.addEventListener("blur", () => {
       const trimmed = trimPadding(getText(body));
@@ -986,7 +1013,8 @@
       }
       showRendered(body, note);         // leaving edit mode: render Markdown (raw-text fallback offline)
       body.scrollTop = 0;               // a scrolled long note resets to show its start
-      if (isTouch){ body.contentEditable = "false"; el.classList.remove("editing"); }
+      el.classList.remove("editing");   // restore the GPU-compositing hints for smooth dragging
+      if (isTouch) body.contentEditable = "false";
       refreshBar();
     });
     body.addEventListener("paste", e => {
@@ -1267,9 +1295,11 @@
     const note = noteById.get(el.dataset.id);
     if (!note) return;
 
-    // On touch, a note being edited owns its own touches (native caret + scroll).
-    // Tap empty space to finish, then drag the note to move it.
-    if (isTouch && el.classList.contains("editing")) return;
+    // A note being edited owns its own pointer events (native caret placement,
+    // text selection, scroll). It must not start a drag, or a click that nudges a
+    // few px would turn into a move — yanking the note and blurring the caret. To
+    // move it, click/tap empty space to finish editing first, then drag.
+    if (el.classList.contains("editing")) return;
 
     bringToFront(note);
 
