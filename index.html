@@ -284,7 +284,7 @@
   .note-body.markdown li > ol{ margin:.1em 0; }
   .note-body.markdown li.task-list-item{ list-style:none; margin-left:-1.2em; }
   .note-body.markdown input[type="checkbox"]{ margin:0 .45em 0 0; vertical-align:middle; }
-  .note-body.markdown a{ color:#0b62c4; text-decoration:underline; }
+  .note-body.markdown a{ color:#0b62c4; text-decoration:underline; cursor:pointer; }
   .note-body.markdown strong{ font-weight:700; }
   .note-body.markdown em{ font-style:italic; }
   .note-body.markdown del{ opacity:.7; }
@@ -986,7 +986,7 @@
 
     const body = document.createElement("div");
     body.className = "note-body";
-    body.contentEditable = isTouch ? "false" : "true";   // touch: tap a note to enter edit mode
+    body.contentEditable = "false";   // display is read-only; edit mode turns it on (see enterEdit)
     body.spellcheck = false;
     body.setAttribute("data-placeholder", "Jot an idea…");
     const refreshBar = () => updateScrollbar(el, body, scrollbar, thumb);
@@ -1014,7 +1014,7 @@
       showRendered(body, note);         // leaving edit mode: render Markdown (raw-text fallback offline)
       body.scrollTop = 0;               // a scrolled long note resets to show its start
       el.classList.remove("editing");   // restore the GPU-compositing hints for smooth dragging
-      if (isTouch) body.contentEditable = "false";
+      body.contentEditable = "false";   // back to read-only display (so links stay clickable)
       refreshBar();
     });
     body.addEventListener("paste", e => {
@@ -1022,6 +1022,16 @@
       const t = (e.clipboardData || window.clipboardData).getData("text");
       try { document.execCommand("insertText", false, t); } catch(_){}
     });
+    // Rendered Markdown links open in a new tab, handled on the note's pointer-up
+    // so the same click doesn't also enter edit mode. Block the native click so a
+    // link can never navigate the board away in the current tab.
+    body.addEventListener("click", e => {
+      const a = e.target.closest && e.target.closest("a[href]");
+      if (a) e.preventDefault();
+    });
+    // Rendered links/images are natively draggable, which would hijack a press that
+    // means to drag the note. Suppress it so the whole note stays a drag surface.
+    body.addEventListener("dragstart", e => e.preventDefault());
 
     const scrollbar = document.createElement("div");
     scrollbar.className = "note-scrollbar";
@@ -1085,10 +1095,8 @@
   function enterEdit(note, x, y){
     const v = view.get(note.id);
     if (!v) return;
-    if (isTouch){
-      v.body.contentEditable = "true";
-      v.el.classList.add("editing");
-    }
+    v.body.contentEditable = "true";        // display is read-only; turn editing on
+    if (isTouch) v.el.classList.add("editing");
     v.body.focus();
     if (x != null && y != null){
       placeCaret(v.body, x, y);
@@ -1301,6 +1309,11 @@
     // move it, click/tap empty space to finish editing first, then drag.
     if (el.classList.contains("editing")) return;
 
+    // A press that lands on a rendered Markdown link opens it (on pointer-up)
+    // instead of entering edit mode. We still set up the drag below, so dragging
+    // from a link moves the note — the link only opens when the pointer doesn't move.
+    const link = e.target.closest && e.target.closest(".note-body a[href]");
+
     bringToFront(note);
 
     drag = {
@@ -1313,6 +1326,7 @@
       tilt: parseFloat(el.style.getPropertyValue("--r")) || note.r,
       moving: false,
       raf: 0,
+      linkHref: link ? link.href : null,
     };
 
     window.addEventListener("pointermove", onPointerMove);
@@ -1374,6 +1388,9 @@
       document.body.classList.remove("dragging");
       // spring back to the resting angle (CSS transition on .note-inner)
       d.el.style.setProperty("--r", d.note.r + "deg");
+    } else if (d.linkHref){
+      // a tap/click on a rendered link -> open it in a new tab, don't enter edit mode
+      window.open(d.linkHref, "_blank", "noopener,noreferrer");
     } else {
       // a tap/click, not a drag -> edit, with the caret where you tapped
       enterEdit(d.note, e.clientX, e.clientY);
