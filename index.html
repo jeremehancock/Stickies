@@ -788,15 +788,16 @@
     const refreshBar = () => updateScrollbar(el, body, scrollbar, thumb);
     body.addEventListener("input", () => { note.text = getText(body); setEmptyClass(body); refreshBar(); save(); });
     body.addEventListener("scroll", refreshBar, { passive: true });
-    // when editing ends, drop any blank padding so the text settles at the top
+    // when editing ends, drop any blank padding and return the note to the top
     body.addEventListener("blur", () => {
       const trimmed = trimPadding(getText(body));
       if (trimmed !== getText(body)){
-        body.textContent = trimmed;       // also resets scrollTop, seating text at the top
+        body.textContent = trimmed;
         note.text = trimmed;
         setEmptyClass(body);
         save();
       }
+      body.scrollTop = 0;               // a scrolled long note resets to show its start
       refreshBar();
     });
     body.addEventListener("paste", e => {
