@@ -613,10 +613,13 @@
     -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
   }
   .modal[hidden]{ display:none; }
-  /* The help modal is taller and changes height between tabs. Anchor it near the
-     top and let it grow downward, so switching tabs never shifts the tabs or the
-     "Got it" button (and tall content can scroll on short screens). */
-  #help{ align-items: start; padding: clamp(56px, 11vh, 120px) 12px 24px; overflow-y: auto; }
+  /* The help modal is taller and changes height between tabs. On desktop, anchor
+     it near the top and let it grow downward, so switching tabs never shifts the
+     tabs or the "Got it" button (and tall content can scroll on short screens).
+     On touch it's a bottom sheet (see `.modal.as-sheet`), so this must not apply
+     there — scope it to non-touch or its `align-items:start` would beat the
+     lower-specificity sheet rule and undock the panel from the bottom. */
+  html:not(.touch) #help{ align-items: start; padding: clamp(56px, 11vh, 120px) 12px 24px; overflow-y: auto; }
   .modal-card{
     width:min(460px, 92vw);
     background: var(--panel-bg); border-radius:18px; padding:24px 24px 20px;
