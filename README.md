@@ -50,9 +50,9 @@ Phones and tablets get a dedicated, app-like layout (desktop is unchanged):
 - **Add a note** — tap the round **+** button in the bottom-right corner, or
   double-tap the board.
 - **Edit** — tap a note to type. A control bar slides in across the top of the
-  screen with everything for that note: **color**, **font, size & tilt** (the
-  **Aa** button), **move to another page** (**‹ ›**), **delete**, and **Done**.
-  Tap **Done** or empty space when you're finished.
+  screen with everything for that note: **color**, **font & size** (the **Aa**
+  button), **tilt**, **move to another page** (**‹ ›**), **delete**, and
+  **Done**. Tap **Done** or empty space when you're finished.
 - **Move, scroll & resize** — drag a note to move it; on a long note swipe up/down
   to scroll its text without opening the keyboard, and drag sideways to move it;
   drag the corner grip to resize.

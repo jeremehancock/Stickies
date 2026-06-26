@@ -933,15 +933,15 @@
      paint on top of the popover (the caret renders above stacking contexts). */
   .note-body.caret-hidden{ caret-color: transparent !important; }
 
-  /* ---- popovers (color, and font+size), anchored under their nb buttons ---- */
-  #stylePop, #colorPop{
+  /* ---- popovers (color, font+size, tilt), anchored under their nb buttons ---- */
+  #stylePop, #colorPop, #tiltPop{
     position:fixed; z-index:150001; display:none;
     width: min(290px, calc(100vw - 20px));
     background: var(--panel-bg); border:1px solid var(--bar-border);
     border-radius:16px; padding:12px; box-shadow: 0 18px 50px rgba(0,0,0,.45);
   }
-  #stylePop.open, #colorPop.open{ display:block; }
-  #stylePop .pop-label, #colorPop .pop-label{
+  #stylePop.open, #colorPop.open, #tiltPop.open{ display:block; }
+  #stylePop .pop-label, #colorPop .pop-label, #tiltPop .pop-label{
     font:700 11px var(--ui-font); letter-spacing:.6px; text-transform:uppercase;
     color: var(--panel-muted); margin:2px 4px 7px;
   }
@@ -960,19 +960,19 @@
     background: var(--panel-soft-bg); color: var(--panel-text); font:600 15px var(--ui-font);
   }
   #stylePop .pop-size button.active{ background: var(--btn-primary-bg); color: var(--btn-primary-text); }
-  /* tilt row in the style popover (themed slider + a straighten button) */
-  #stylePop .pop-tilt{ display:flex; align-items:center; gap:11px; padding:2px 2px 2px; }
-  #stylePop .pop-tilt .tilt-straight{
+  /* tilt popover (themed slider + a straighten button) */
+  #tiltPop .pop-tilt{ display:flex; align-items:center; gap:11px; padding:2px; }
+  #tiltPop .pop-tilt .tilt-straight{
     width:40px; height:40px; border-radius:11px;
     background: var(--panel-soft-bg); color: var(--panel-text);
   }
-  #stylePop .pop-tilt .tilt-straight:hover{ background: var(--panel-soft-bg); }
-  #stylePop .pop-tilt .tilt-val{ min-width:34px; font-size:14px; color: var(--panel-muted); }
-  #stylePop .tilt-range{ flex:1 1 auto; width:auto; height:40px; }
-  #stylePop .tilt-range::-webkit-slider-runnable-track{ background: var(--panel-soft-bg); height:5px; }
-  #stylePop .tilt-range::-webkit-slider-thumb{ background: var(--btn-primary-bg); width:20px; height:20px; margin-top:-7.5px; }
-  #stylePop .tilt-range::-moz-range-track{ background: var(--panel-soft-bg); height:5px; }
-  #stylePop .tilt-range::-moz-range-thumb{ background: var(--btn-primary-bg); width:20px; height:20px; }
+  #tiltPop .pop-tilt .tilt-straight:hover{ background: var(--panel-soft-bg); }
+  #tiltPop .pop-tilt .tilt-val{ min-width:34px; font-size:14px; color: var(--panel-muted); }
+  #tiltPop .tilt-range{ flex:1 1 auto; width:auto; height:40px; }
+  #tiltPop .tilt-range::-webkit-slider-runnable-track{ background: var(--panel-soft-bg); height:5px; }
+  #tiltPop .tilt-range::-webkit-slider-thumb{ background: var(--btn-primary-bg); width:20px; height:20px; margin-top:-7.5px; }
+  #tiltPop .tilt-range::-moz-range-track{ background: var(--panel-soft-bg); height:5px; }
+  #tiltPop .tilt-range::-moz-range-thumb{ background: var(--btn-primary-bg); width:20px; height:20px; }
 
   /* draggable handle at the top of the bottom-sheet menu (swipe down to close) */
   #menuSheet .sheet-handle{
@@ -1217,8 +1217,8 @@
 
   /* mobile app-like UI (built lazily in setupMobileUI; null on desktop) */
   let activeNote = null;           // the note whose controls #noteBar is showing
-  let noteBarEl = null, styleBtnEl = null, colorBtnEl = null, colorDotEl = null;
-  let stylePopEl = null, colorPopEl = null;
+  let noteBarEl = null, styleBtnEl = null, colorBtnEl = null, colorDotEl = null, tiltBtnEl = null;
+  let stylePopEl = null, colorPopEl = null, tiltPopEl = null;
   let popTiltRange = null, popTiltVal = null;
   let nbMoveLeft = null, nbMoveRight = null;
   const nbSwatches = [], popFontBtns = [], popSizeBtns = [];
@@ -2545,7 +2545,8 @@
     const editing = !!(ae && ae.isContentEditable);
     if (e.key === "Escape"){
       if ((stylePopEl && stylePopEl.classList.contains("open")) ||
-          (colorPopEl && colorPopEl.classList.contains("open"))){ closePops(); return; }
+          (colorPopEl && colorPopEl.classList.contains("open")) ||
+          (tiltPopEl  && tiltPopEl.classList.contains("open"))){ closePops(); return; }
       if (menuSheetEl && menuSheetEl.classList.contains("open")){ closeMenu(); return; }
       if (!importConfirmEl.hidden){ pendingImport = null; closeImportConfirm(); return; }
       if (!exportEl.hidden){ closeExport(); return; }
@@ -2640,14 +2641,16 @@
     buildFab();
     buildMenuSheet();
     buildNoteBar();
-    // close an open popover (color / style) when tapping outside it
+    // close an open popover (color / style / tilt) when tapping outside it
     document.addEventListener("pointerdown", e => {
-      const styleOpen = stylePopEl && stylePopEl.classList.contains("open");
-      const colorOpen = colorPopEl && colorPopEl.classList.contains("open");
-      if (!styleOpen && !colorOpen) return;
+      const anyOpen = (stylePopEl && stylePopEl.classList.contains("open")) ||
+                      (colorPopEl && colorPopEl.classList.contains("open")) ||
+                      (tiltPopEl  && tiltPopEl.classList.contains("open"));
+      if (!anyOpen) return;
       const t = e.target;
-      if (stylePopEl.contains(t) || colorPopEl.contains(t)) return;
-      if ((styleBtnEl && styleBtnEl.contains(t)) || (colorBtnEl && colorBtnEl.contains(t))) return;
+      if (stylePopEl.contains(t) || colorPopEl.contains(t) || tiltPopEl.contains(t)) return;
+      if ((styleBtnEl && styleBtnEl.contains(t)) || (colorBtnEl && colorBtnEl.contains(t)) ||
+          (tiltBtnEl && tiltBtnEl.contains(t))) return;
       closePops();
     });
 
@@ -2810,6 +2813,15 @@
     styleBtnEl.addEventListener("click", e => { e.stopPropagation(); togglePop(stylePopEl, styleBtnEl); });
     row.appendChild(styleBtnEl);
 
+    // tilt (its own popover — a slider + a "straighten" button)
+    tiltBtnEl = document.createElement("button");
+    tiltBtnEl.className = "nb-btn";
+    tiltBtnEl.title = "Tilt";
+    tiltBtnEl.setAttribute("aria-label", "Tilt");
+    tiltBtnEl.innerHTML = TILT_ICON;
+    tiltBtnEl.addEventListener("click", e => { e.stopPropagation(); togglePop(tiltPopEl, tiltBtnEl); });
+    row.appendChild(tiltBtnEl);
+
     row.appendChild(makeSep());
 
     // move to previous / next page
@@ -2858,6 +2870,7 @@
 
     buildColorPop(keepFocus);
     buildStylePop(keepFocus);
+    buildTiltPop(keepFocus);
   }
   function makeSep(){ const s = document.createElement("span"); s.className = "nb-sep"; return s; }
 
@@ -2920,8 +2933,15 @@
     });
     stylePopEl.appendChild(sizeWrap);
 
+    document.body.appendChild(stylePopEl);
+  }
+
+  function buildTiltPop(keepFocus){
+    tiltPopEl = document.createElement("div");
+    tiltPopEl.id = "tiltPop";
+    tiltPopEl.setAttribute("role", "menu");
     const tl = document.createElement("div"); tl.className = "pop-label"; tl.textContent = "Tilt";
-    stylePopEl.appendChild(tl);
+    tiltPopEl.appendChild(tl);
     const tiltWrap = document.createElement("div"); tiltWrap.className = "pop-tilt";
     const straight = document.createElement("button");
     straight.className = "tilt-straight";
@@ -2949,9 +2969,9 @@
     tiltWrap.appendChild(straight);
     tiltWrap.appendChild(popTiltRange);
     tiltWrap.appendChild(popTiltVal);
-    stylePopEl.appendChild(tiltWrap);
+    tiltPopEl.appendChild(tiltWrap);
 
-    document.body.appendChild(stylePopEl);
+    document.body.appendChild(tiltPopEl);
   }
   // Hide/show the text caret on the active note while a popover is open, so it
   // never paints on top of the popover.
@@ -2978,6 +2998,7 @@
     let any = false;
     if (stylePopEl && stylePopEl.classList.contains("open")){ stylePopEl.classList.remove("open"); any = true; }
     if (colorPopEl && colorPopEl.classList.contains("open")){ colorPopEl.classList.remove("open"); any = true; }
+    if (tiltPopEl && tiltPopEl.classList.contains("open")){ tiltPopEl.classList.remove("open"); any = true; }
     setCaretHidden(false);
     return any;
   }
@@ -3000,7 +3021,8 @@
     if (!noteBarEl || !noteBarEl.classList.contains("open")) return;
     const vv = window.visualViewport;
     const popOpen = (stylePopEl && stylePopEl.classList.contains("open")) ||
-                    (colorPopEl && colorPopEl.classList.contains("open"));
+                    (colorPopEl && colorPopEl.classList.contains("open")) ||
+                    (tiltPopEl  && tiltPopEl.classList.contains("open"));
     const off = (popOpen || !vv) ? 0 : Math.max(0, vv.offsetTop);
     noteBarEl.style.transform = off ? ("translateY(" + off + "px)") : "";
   }
@@ -3058,7 +3080,7 @@
     set("hColor",  "<b>Change Color</b> — tap a note, then the color button in the toolbar to pick a new color.");
     set("hFont",   "<b>Font</b> — tap a note, then tap <b>Aa</b> in the toolbar to pick from 5 fonts.");
     set("hSize",   "<b>Text Size</b> — tap a note, then tap <b>Aa</b> in the toolbar to choose a size.");
-    set("hTilt",   "<b>Tilt</b> — tap a note, then tap <b>Aa</b> and use the Tilt slider to set the lean (centre, or the straighten button, for none).");
+    set("hTilt",   "<b>Tilt</b> — tap a note, then the tilt button in the toolbar to set the lean with a slider (centre, or the straighten button, for none).");
     set("hTheme",  "<b>Theme</b> — switch light &amp; dark from the <b>⋯</b> menu; dark is the default.");
     set("hDelete", "<b>Delete</b> — tap a note, then hit the trash button in the toolbar.");
     set("hRename", "<b>Rename</b> — tap the board name in the top bar and type.");
