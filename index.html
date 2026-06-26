@@ -432,6 +432,18 @@
   }
   .note-tools .del:hover{ background:#ff5d5d; color:#fff; }
 
+  /* move-to-page chevrons (touch only) — flank the toolbar to send a note
+     to the previous/next page */
+  .note-tools .move{
+    width:19px; height:19px; padding:0; border:none; border-radius:50%;
+    background: rgba(0,0,0,.07); color:#000; cursor:pointer;
+    display:grid; place-items:center;
+    transition: background .15s ease, color .15s ease;
+  }
+  .note-tools .move:hover{ background: rgba(0,0,0,.14); }
+  .note-tools .move svg{ display:block; }
+  .note-tools .move[hidden]{ display:none; }
+
   /* font & size pickers inside note toolbar */
   .note-tools select{
     height:26px; padding:1px 18px 1px 7px; border:1px solid rgba(0,0,0,.14);
@@ -613,6 +625,53 @@
     padding:1px 6px; font-size:12px; color: var(--panel-soft-text);
   }
 
+  /* ---------------- pages (mobile multi-page board) ----------------
+     A horizontal track of full-viewport panels; one note lives in the panel
+     matching its page. Off-screen panels are clipped by #board's overflow.
+     Desktop never builds the track — notes stay direct children of #board. */
+  .page-track{
+    position:absolute; inset:0; z-index:2;   /* above the credit, below the bar */
+    display:flex; flex-wrap:nowrap;
+    will-change: transform;
+    transition: transform .42s cubic-bezier(.22,1,.36,1);
+  }
+  .page-track.panning{ transition:none; }    /* follow the finger 1:1 while swiping */
+  .page{
+    position:relative;                       /* notes position against the panel */
+    flex:0 0 100%; width:100%; height:100%;
+  }
+
+  /* bottom page indicator: dots + add / remove-empty controls */
+  .pager{
+    position:fixed; left:50%; bottom:30px; z-index:99999;
+    transform: translateX(-50%);
+    display:none; align-items:center; gap:11px;
+    padding:7px 12px;
+    background: var(--bar-bg);
+    -webkit-backdrop-filter: blur(16px) saturate(1.5);
+    backdrop-filter: blur(16px) saturate(1.5);
+    border:1px solid var(--bar-border);
+    border-radius:999px;
+    box-shadow: 0 10px 28px -12px rgba(20,20,40,.30);
+    user-select:none;
+  }
+  .touch .pager{ display:flex; }             /* mobile only */
+  .pager .dots{ display:flex; align-items:center; gap:9px; }
+  .pager .dot{
+    width:8px; height:8px; padding:0; border-radius:50%;
+    border:none; background: var(--hint); cursor:pointer;
+    transition: transform .15s ease, background-color .15s ease;
+  }
+  .pager .dot.active{ background: var(--accent); transform: scale(1.4); }
+  .pager .pbtn{
+    width:24px; height:24px; padding:0; border:none; border-radius:50%;
+    display:grid; place-items:center; cursor:pointer;
+    background: var(--btn-icon-bg); color: var(--btn-text);
+    font-size:17px; line-height:1;
+  }
+  .pager .pbtn:hover{ background: var(--btn-icon-bg-hover); }
+  .pager .pbtn[hidden]{ display:none; }
+
   /* ---------------- animations ---------------- */
   @keyframes pop{ from{ opacity:0; transform: scale(.92) } to{ opacity:1; transform: scale(1) } }
   @keyframes notePop{
@@ -627,6 +686,13 @@
   .note.removing{ pointer-events:none; }
   .note.removing .note-inner{ animation: noteRemove .26s ease forwards; }
 
+  /* a note "flits" off toward the page it's being sent to, then re-parents */
+  @keyframes noteFlitR{ to{ opacity:0; transform: rotate(var(--r,0deg)) translateX(80px) scale(.7); } }
+  @keyframes noteFlitL{ to{ opacity:0; transform: rotate(var(--r,0deg)) translateX(-80px) scale(.7); } }
+  .note.flitting{ pointer-events:none; }
+  .note.flit-right .note-inner{ animation: noteFlitR .26s ease forwards; }
+  .note.flit-left  .note-inner{ animation: noteFlitL .26s ease forwards; }
+
   @media (max-width: 560px){
     .brand-logo{ display:none; }
     .board-name{ max-width:44vw; }
@@ -639,6 +705,8 @@
   @media (prefers-reduced-motion: reduce){
     .note-inner{ transition: box-shadow .2s ease; }
     .note.pop .note-inner, .note.removing .note-inner{ animation-duration: .01s; }
+    .note.flit-right .note-inner, .note.flit-left .note-inner{ animation-duration: .01s; }
+    .page-track{ transition-duration: .01s; }
   }
 </style>
 </head>
@@ -731,6 +799,7 @@
             <li id="hDelete"><b>Delete</b> — hover a note and hit <b>×</b>.</li>
             <li><b>Undo a delete</b> — tap <kbd>Undo</kbd> on the toast, or press <kbd>Ctrl/⌘</kbd>+<kbd>Z</kbd>.</li>
             <li id="hRename"><b>Rename</b> — click the board name in the top bar and type.</li>
+            <li id="hPages" hidden></li>
           </ul>
         </div>
         <div class="tab-panel" id="hpanel-backup" data-tab="backup" role="tabpanel" aria-labelledby="htab-backup" hidden>
@@ -818,6 +887,7 @@
   const NOTE_MAX = 360;        // largest a note can be resized to
   const DRAG_THRESHOLD = 5;    // px of movement before a press becomes a drag
   const MARGIN = 8;            // keep notes this far inside the board
+  const MAX_PAGES = 8;         // cap on mobile pages per board
   const PALETTE = [
     { id:"yellow", label:"Yellow" },
     { id:"pink",   label:"Pink"   },
@@ -865,12 +935,20 @@
   let maxZ = 1;
   let activeColor = "yellow";
   let boardName = "";
+  let pageCount = 1;               // mobile: number of pages (desktop ignores)
+  let currentPage = 0;             // mobile: the page currently in view
   let theme = document.documentElement.getAttribute("data-theme") === "light" ? "light" : "dark";
   const undoStack = [];
   let pendingImport = null;        // a parsed board waiting on the "Replace?" confirm
 
   /* ---------------- helpers ---------------- */
   const clamp = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
+
+  // best-effort haptic tap — Android honors navigator.vibrate; iOS Safari no-ops
+  function haptic(ms){ try { if (navigator.vibrate) navigator.vibrate(ms || 10); } catch(_){} }
+  function prefersReducedMotion(){
+    try { return matchMedia("(prefers-reduced-motion: reduce)").matches; } catch(_){ return false; }
+  }
 
   function uid(){
     try { if (window.crypto && crypto.randomUUID) return crypto.randomUUID(); } catch(_){}
@@ -908,7 +986,12 @@
     note.y = clamp(note.y, MARGIN, Math.max(MARGIN, H - h - MARGIN));
   }
 
-  function refreshEmptyHint(){ emptyHint.style.display = notes.length ? "none" : ""; }
+  function refreshEmptyHint(){
+    // on mobile the hint reflects the page in view; on desktop, the whole board
+    const empty = isTouch ? !notes.some(n => (n.page || 0) === currentPage) : notes.length === 0;
+    emptyHint.style.display = empty ? "" : "none";
+    if (isTouch) renderPager();   // keep the dots / remove-affordance in sync with note counts
+  }
 
   function escapeHtml(s){
     return String(s).replace(/[&<>"']/g, c =>
@@ -973,7 +1056,7 @@
   function save(){
     clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {
-      try { localStorage.setItem(STORE_KEY, JSON.stringify({ notes, activeColor, boardName })); }
+      try { localStorage.setItem(STORE_KEY, JSON.stringify({ notes, activeColor, boardName, pageCount, currentPage })); }
       catch(e){ toast("Couldn't save — storage may be full or blocked."); }
     }, 150);
   }
@@ -986,8 +1069,26 @@
       notes = data.notes;
       if (data.activeColor) activeColor = data.activeColor;
       if (typeof data.boardName === "string") boardName = data.boardName;
+      adoptPages(data);
       return true;
     } catch(e){ return false; }
+  }
+
+  // Normalize page bookkeeping from a stored/imported board: backfill & clamp each
+  // note's page, derive how many pages are needed (never dropping a note), and pick
+  // the page to show. Caps at MAX_PAGES.
+  function adoptPages(data, restoreCurrent){
+    let pc = (data && Number.isFinite(+data.pageCount) && +data.pageCount >= 1)
+      ? Math.floor(+data.pageCount) : 1;
+    notes.forEach(n => {
+      const p = Math.floor(+n.page);
+      n.page = (Number.isFinite(p) && p >= 0) ? p : 0;
+      if (n.page + 1 > pc) pc = n.page + 1;
+    });
+    pageCount = clamp(pc, 1, MAX_PAGES);
+    notes.forEach(n => { if (n.page > pageCount - 1) n.page = pageCount - 1; });
+    const want = (restoreCurrent && data && Number.isFinite(+data.currentPage)) ? Math.floor(+data.currentPage) : 0;
+    currentPage = clamp(want, 0, pageCount - 1);
   }
 
   /* ---------------- z-order & color ---------------- */
@@ -1026,6 +1127,7 @@
   function renderNote(note){
     if (!note.w) note.w = NOTE_W;       // legacy notes saved before resizing existed
     if (!note.h) note.h = NOTE_H;
+    if (note.page == null) note.page = 0;   // legacy notes saved before pages existed
     note.text = trimPadding(note.text);  // never carry blank padding above/below the text
     const el = document.createElement("div");
     el.className = "note pop";
@@ -1045,6 +1147,19 @@
 
     const tools = document.createElement("div");
     tools.className = "note-tools";
+
+    // move-to-page chevrons (mobile only); ‹ sends left, › sends right
+    let moveLeft = null, moveRight = null;
+    if (isTouch){
+      moveLeft = document.createElement("button");
+      moveLeft.className = "move move-left";
+      moveLeft.title = "Move to previous page";
+      moveLeft.setAttribute("aria-label", "Move to previous page");
+      moveLeft.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>';
+      moveLeft.addEventListener("click", e => { e.stopPropagation(); moveNoteToPage(note, (note.page || 0) - 1); });
+      tools.appendChild(moveLeft);
+    }
+
     const colorBtn = document.createElement("button");
     colorBtn.className = "color-btn";
     colorBtn.title = "Change color";
@@ -1096,6 +1211,16 @@
     del.innerHTML = "&times;";
     del.addEventListener("click", e => { e.stopPropagation(); deleteNote(note.id); });
     tools.appendChild(del);
+
+    if (isTouch){
+      moveRight = document.createElement("button");
+      moveRight.className = "move move-right";
+      moveRight.title = "Move to next page";
+      moveRight.setAttribute("aria-label", "Move to next page");
+      moveRight.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>';
+      moveRight.addEventListener("click", e => { e.stopPropagation(); moveNoteToPage(note, (note.page || 0) + 1); });
+      tools.appendChild(moveRight);
+    }
 
     // controls must never start a drag
     tools.addEventListener("pointerdown", e => e.stopPropagation());
@@ -1174,9 +1299,10 @@
       if (e.animationName === "notePop") el.classList.remove("pop");
     });
 
-    board.appendChild(el);
+    pagePanelFor(note).appendChild(el);
     noteById.set(note.id, note);
-    view.set(note.id, { el, inner, body, scrollbar, thumb });
+    view.set(note.id, { el, inner, body, scrollbar, thumb, moveLeft, moveRight });
+    updateMoveButtons();
 
     // measure now that it's in the DOM, then keep it on-board
     constrain(note, el.offsetWidth, el.offsetHeight);
@@ -1201,6 +1327,7 @@
       z: ++maxZ,
       font: opts.font || "sans",
       fontSize: opts.fontSize || "medium",
+      page: (opts.page != null) ? opts.page : (isTouch ? currentPage : 0),
     };
     notes.push(note);
     renderNote(note);
@@ -1281,6 +1408,8 @@
     undoStack.length = 0;
     boardName = "";
     applyBoardName();          // back to the "Name this board" placeholder
+    pageCount = 1; currentPage = 0;
+    if (isTouch) syncPages();  // collapse back to a single page
     save();
     refreshEmptyHint();
   }
@@ -1301,10 +1430,11 @@
     const data = {
       app: "stickies",
       type: "stickies-board",
-      version: 1,
+      version: 2,
       exportedAt: new Date().toISOString(),
       boardName: boardName,
       activeColor: activeColor,
+      pageCount: pageCount,
       notes: notes.map(n => ({
         id: n.id,
         x: Math.round(n.x),
@@ -1317,6 +1447,7 @@
         z: n.z,
         font: n.font || "sans",
         fontSize: n.fontSize || "medium",
+        page: Math.max(0, Math.floor(n.page || 0)),
       })),
     };
     try {
@@ -1352,6 +1483,7 @@
       z: num(n.z, 1),
       font: FONT_IDS.has(n.font) ? n.font : "sans",
       fontSize: SIZE_IDS.has(n.fontSize) ? n.fontSize : "medium",
+      page: Math.max(0, Math.floor(num(n.page, 0))),
     };
   }
 
@@ -1405,12 +1537,15 @@
     maxZ = 1;
     notes.forEach(n => { maxZ = Math.max(maxZ, n.z || 1); });
 
+    adoptPages(data, false);   // pageCount from the file; view jumps to the first page
+
     boardName = (typeof data.boardName === "string") ? data.boardName.replace(/\s+/g, " ").trim() : "";
     applyBoardName();
 
     if (COLOR_IDS.has(data.activeColor)) setActiveColor(data.activeColor);
 
     notes.forEach(renderNote);
+    if (isTouch) syncPages();
     refreshEmptyHint();
     save();
     toast(notes.length ? ("Board imported — " + (notes.length === 1 ? "1 note" : notes.length + " notes")) : "Imported an empty board");
@@ -1598,23 +1733,276 @@
     save();
   }
 
+  /* ---------------- pages (mobile multi-page board) ----------------
+     Mobile only. Notes live inside per-page panels in a horizontal track that
+     slides between pages. Desktop never builds any of this — pagePanelFor()
+     returns #board there, so notes stay direct children exactly as before. */
+  let pageTrack = null;          // the sliding flex container (mobile)
+  const pagePanels = [];         // index -> .page element
+  let pagerEl = null;            // the bottom dot indicator
+
+  function isBoardBackground(t){
+    if (t === board) return true;
+    return !!(t && t.classList && t.classList.contains("page"));
+  }
+
+  // Build the track + pager once, lazily, the first time a note needs a home.
+  function ensureTrack(){
+    if (!isTouch || pageTrack) return pageTrack;
+    pageTrack = document.createElement("div");
+    pageTrack.className = "page-track";
+    board.insertBefore(pageTrack, board.firstChild);   // sits above the credit, below notes' bar
+    pageTrack.addEventListener("pointerdown", onPagePointerDown);
+    buildPager();
+    ensurePanels();
+    return pageTrack;
+  }
+  // Grow/shrink the panel set to match pageCount.
+  function ensurePanels(){
+    if (!isTouch) return;
+    ensureTrack();
+    while (pagePanels.length < pageCount){
+      const p = document.createElement("div");
+      p.className = "page";
+      p.dataset.page = String(pagePanels.length);
+      pageTrack.appendChild(p);
+      pagePanels.push(p);
+    }
+    while (pagePanels.length > pageCount){
+      pagePanels.pop().remove();
+    }
+  }
+  // Where a note's element should be appended.
+  function pagePanelFor(note){
+    if (!isTouch) return board;
+    ensurePanels();
+    return pagePanels[clamp(note.page || 0, 0, pageCount - 1)] || board;
+  }
+  // Move every note's element into the panel matching its page.
+  function reparentNotes(){
+    if (!isTouch) return;
+    ensurePanels();
+    notes.forEach(n => {
+      const v = view.get(n.id);
+      if (!v) return;
+      const target = pagePanels[clamp(n.page || 0, 0, pageCount - 1)];
+      if (target && v.el.parentNode !== target) target.appendChild(v.el);
+    });
+  }
+
+  function buildPager(){
+    if (!isTouch || pagerEl) return;
+    pagerEl = document.createElement("div");
+    pagerEl.className = "pager";
+    pagerEl.setAttribute("role", "group");
+    pagerEl.setAttribute("aria-label", "Board pages");
+
+    const dots = document.createElement("div");
+    dots.className = "dots";
+    pagerEl.appendChild(dots);
+
+    const removeBtn = document.createElement("button");
+    removeBtn.className = "pbtn premove";
+    removeBtn.title = "Remove this empty page";
+    removeBtn.setAttribute("aria-label", "Remove this empty page");
+    removeBtn.innerHTML = "&minus;";
+    removeBtn.addEventListener("click", () => removePage(currentPage));
+    pagerEl.appendChild(removeBtn);
+
+    const addBtn = document.createElement("button");
+    addBtn.className = "pbtn padd";
+    addBtn.title = "Add a page";
+    addBtn.setAttribute("aria-label", "Add a page");
+    addBtn.textContent = "+";
+    addBtn.addEventListener("click", addPage);
+    pagerEl.appendChild(addBtn);
+
+    document.body.appendChild(pagerEl);
+  }
+  // Rebuild the dots and toggle the add/remove affordances.
+  function renderPager(){
+    if (!pagerEl) return;
+    const dots = pagerEl.querySelector(".dots");
+    dots.innerHTML = "";
+    for (let i = 0; i < pageCount; i++){
+      const d = document.createElement("button");
+      d.className = "dot" + (i === currentPage ? " active" : "");
+      d.title = "Page " + (i + 1);
+      d.setAttribute("aria-label", "Go to page " + (i + 1));
+      const idx = i;
+      d.addEventListener("click", () => goToPage(idx, { animate: true }));
+      dots.appendChild(d);
+    }
+    pagerEl.querySelector(".padd").hidden = pageCount >= MAX_PAGES;
+    const currentEmpty = !notes.some(n => (n.page || 0) === currentPage);
+    pagerEl.querySelector(".premove").hidden = !(currentEmpty && pageCount > 1);
+  }
+  // ‹ hides on the first page; › hides only when there's nowhere left to go.
+  function updateMoveButtons(){
+    if (!isTouch) return;
+    view.forEach((v, id) => {
+      if (!v.moveLeft) return;
+      const n = noteById.get(id);
+      if (!n) return;
+      const page = n.page || 0;
+      v.moveLeft.hidden = page <= 0;
+      v.moveRight.hidden = (page >= pageCount - 1) && (pageCount >= MAX_PAGES);
+    });
+  }
+
+  function applyTrackTransform(){
+    if (pageTrack) pageTrack.style.transform = "translateX(" + (-currentPage * 100) + "%)";
+  }
+  // Single source of truth for the mobile DOM after any structural change.
+  function syncPages(){
+    if (!isTouch) return;
+    ensurePanels();
+    reparentNotes();
+    updateMoveButtons();
+    renderPager();
+    applyTrackTransform();
+  }
+
+  function goToPage(i, opts){
+    if (!isTouch) return;
+    opts = opts || {};
+    i = clamp(i, 0, pageCount - 1);
+    const changed = i !== currentPage;
+    currentPage = i;
+    if (pageTrack) pageTrack.classList.remove("panning");   // animate the settle
+    applyTrackTransform();
+    renderPager();
+    updateMoveButtons();
+    refreshEmptyHint();
+    if (changed) haptic(8);
+    save();
+  }
+  function addPage(){
+    if (!isTouch || pageCount >= MAX_PAGES) return;
+    pageCount++;
+    syncPages();
+    goToPage(pageCount - 1, { animate: true });
+    haptic(12);
+  }
+  // Remove an empty page (renumbering later pages down). Notes are never lost.
+  function removePage(i){
+    if (!isTouch || pageCount <= 1) return;
+    if (notes.some(n => (n.page || 0) === i)) return;     // only when empty
+    notes.forEach(n => { if ((n.page || 0) > i) n.page -= 1; });
+    pageCount--;
+    if (currentPage > pageCount - 1) currentPage = pageCount - 1;
+    syncPages();
+    goToPage(currentPage, { animate: true });
+    haptic(12);
+    save();
+  }
+  // Send a note to another page (toolbar ‹ ›). Creates a page off the end if
+  // needed (within the cap), then flits the note away and re-parents it.
+  function moveNoteToPage(note, target){
+    if (!isTouch) return;
+    const from = note.page || 0;
+    if (target > from && target >= pageCount){
+      if (pageCount >= MAX_PAGES) return;
+      pageCount++;
+      syncPages();                       // build the new panel (note unmoved yet)
+    }
+    target = clamp(target, 0, pageCount - 1);
+    if (target === from) return;
+    const v = view.get(note.id);
+    const dir = target > from ? "right" : "left";
+    haptic(10);
+    const commit = () => {
+      note.page = target;
+      syncPages();
+      refreshEmptyHint();
+      save();
+    };
+    if (v && !prefersReducedMotion()){
+      const el = v.el;
+      el.classList.add("flitting", dir === "right" ? "flit-right" : "flit-left");
+      let done = false;
+      const finish = () => {
+        if (done) return; done = true;
+        el.classList.remove("flitting", "flit-right", "flit-left");
+        commit();
+      };
+      el.addEventListener("animationend", function h(ev){
+        if (ev.animationName === "noteFlitR" || ev.animationName === "noteFlitL"){
+          el.removeEventListener("animationend", h); finish();
+        }
+      });
+      setTimeout(finish, 340);           // safety net
+    } else {
+      commit();
+    }
+    toast("Moved to Page " + (target + 1));
+  }
+
+  /* ---- swipe between pages (pan the track with a finger) ---- */
+  let pan = null;
+  function onPagePointerDown(e){
+    if (!isTouch) return;
+    if (e.button != null && e.button !== 0) return;
+    if (e.target.closest && e.target.closest(".note")) return;   // a note owns its own gestures
+    const ae = document.activeElement;                            // don't hijack a tap that ends editing
+    if (ae && ae.classList && ae.classList.contains("note-body")) return;
+    pan = { startX: e.clientX, startY: e.clientY, w: board.clientWidth || 1, decided: false, horizontal: false, dx: 0 };
+    window.addEventListener("pointermove", onPagePointerMove);
+    window.addEventListener("pointerup", onPagePointerUp);
+    window.addEventListener("pointercancel", onPagePointerUp);
+  }
+  function onPagePointerMove(e){
+    if (!pan) return;
+    const dx = e.clientX - pan.startX, dy = e.clientY - pan.startY;
+    if (!pan.decided){
+      if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+      pan.decided = true;
+      pan.horizontal = Math.abs(dx) > Math.abs(dy);
+      if (pan.horizontal) pageTrack.classList.add("panning");
+    }
+    if (!pan.horizontal) return;
+    pan.dx = dx;
+    // rubber-band resistance past the first / last page
+    const atEdge = (currentPage === 0 && dx > 0) || (currentPage === pageCount - 1 && dx < 0);
+    const move = atEdge ? dx * 0.35 : dx;
+    pageTrack.style.transform = "translateX(" + (-currentPage * pan.w + move) + "px)";
+  }
+  function onPagePointerUp(){
+    window.removeEventListener("pointermove", onPagePointerMove);
+    window.removeEventListener("pointerup", onPagePointerUp);
+    window.removeEventListener("pointercancel", onPagePointerUp);
+    if (!pan) return;
+    const p = pan; pan = null;
+    if (pageTrack) pageTrack.classList.remove("panning");
+    if (!p.horizontal || !p.decided){ applyTrackTransform(); return; }
+    const threshold = Math.min(80, p.w * 0.22);
+    let target = currentPage;
+    if (p.dx <= -threshold) target = currentPage + 1;
+    else if (p.dx >= threshold) target = currentPage - 1;
+    goToPage(target, { animate: true });
+  }
+
   /* ---------------- board interactions ---------------- */
   // Create a note on a double-tap / double-click of empty board space.
   // Uses pointer events rather than the native dblclick, which fires
   // unreliably from touch across mobile browsers and device emulators.
   let lastTapTime = 0, lastTapX = 0, lastTapY = 0;
+  let bgDownX = -1e9, bgDownY = -1e9;          // start of the last background press
   board.addEventListener("pointerup", e => {
-    if (e.target !== board || drag) return;    // empty space only, never mid-drag
+    if (drag || !isBoardBackground(e.target)) return;    // empty space only, never mid-drag
+    // a moved pointer was a swipe / drag, not a tap — never let it add a note
+    if (Math.abs(e.clientX - bgDownX) > 10 || Math.abs(e.clientY - bgDownY) > 10){ lastTapTime = 0; return; }
     const near = Math.abs(e.clientX - lastTapX) < 28 && Math.abs(e.clientY - lastTapY) < 28;
     if (e.timeStamp - lastTapTime < 400 && near){
       lastTapTime = 0;
-      focusNote(addNote(e.clientX - NOTE_W / 2, e.clientY - 70));
+      focusNote(addNote(e.clientX - NOTE_W / 2, e.clientY - 70));   // page defaults to currentPage
     } else {
       lastTapTime = e.timeStamp; lastTapX = e.clientX; lastTapY = e.clientY;
     }
   });
   board.addEventListener("pointerdown", e => {
-    if (e.target !== board) return;            // tap empty space -> stop editing
+    if (!isBoardBackground(e.target)) return;  // tap empty space -> stop editing
+    bgDownX = e.clientX; bgDownY = e.clientY;
     const ae = document.activeElement;
     if (ae && ae.classList && ae.classList.contains("note-body")) ae.blur();
   });
@@ -1864,6 +2252,11 @@
     set("hColor",  "<b>Change Color</b> — tap a note, then the color button to pick a new color.");
     set("hDelete", "<b>Delete</b> — tap a note, then hit <b>×</b>.");
     set("hRename", "<b>Rename</b> — tap the board name in the top bar and type.");
+    const pagesLi = document.getElementById("hPages");
+    if (pagesLi){
+      pagesLi.hidden = false;
+      pagesLi.innerHTML = "<b>Pages</b> — swipe left/right to move between pages. Use the dots at the bottom to jump or <b>+</b> to add a page; tap a note and use <b>‹ ›</b> to send it to another page.";
+    }
   }
 
   /* ---------------- init ---------------- */
@@ -1881,6 +2274,7 @@
       notes = [];
       seedWelcome();
     }
+    if (isTouch) syncPages();   // build the track/pager and show the saved page
     refreshEmptyHint();
     // If the Markdown CDN libs load (online), upgrade notes from plain text to
     // rendered Markdown once everything is ready. Offline, this is a no-op.
