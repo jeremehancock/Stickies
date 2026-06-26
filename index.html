@@ -1013,16 +1013,19 @@
     animation:none;                  /* replace the desktop "pop" with the slide */
   }
   .touch .modal.as-sheet.open .modal-card{ transform: translateY(0); }
+  /* Grip sits 16px below the top and 12px above the title — matching the menu
+     sheet's grip spacing so every bottom sheet reads the same (and isn't cramped
+     against the title). */
   .touch .modal.as-sheet .sheet-handle{
     display:block; flex:0 0 auto;
-    padding:10px 0 4px; cursor:grab; touch-action:none;
+    padding:16px 0 0; cursor:grab; touch-action:none;
   }
   .touch .modal.as-sheet .sheet-handle .grip{
     width:40px; height:5px; border-radius:3px;
     background: var(--hint); margin:0 auto;
   }
   .touch .modal.as-sheet .modal-card h2{
-    flex:0 0 auto; margin:2px 0 14px; padding:0 20px; font-size:22px;
+    flex:0 0 auto; margin:12px 0 14px; padding:0 20px; font-size:22px;
   }
 
   /* How it works: segmented tabs + a scrollable panel above a pinned footer */
