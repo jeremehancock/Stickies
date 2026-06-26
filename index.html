@@ -543,6 +543,8 @@
     position:fixed; left:50%; bottom:44px; transform: translateX(-50%);
     z-index:120000; display:flex; flex-direction:column; gap:8px; align-items:center;
   }
+  /* lift toasts above the page pager on mobile so "Moved to Page N" never covers it */
+  .touch .toasts{ bottom:84px; }
   .toast{
     display:flex; align-items:center; gap:12px;
     background:#1f1f24; color:#fff;
