@@ -837,27 +837,36 @@
     background: var(--btn-primary-bg); color: var(--btn-primary-text); }
   .nb-btn.danger:active{ background: rgba(255,93,93,.16); color:#ff5d5d; }
   .nb-sep{ flex:0 0 auto; width:1px; height:26px; background: var(--bar-border); margin:0 2px; }
-  .nb-swatches{ flex:0 0 auto; display:flex; align-items:center; gap:9px; padding:0 2px; }
+  /* the color button shows the note's current color as a filled dot */
+  .nb-btn .nb-dot{
+    width:22px; height:22px; border-radius:50%;
+    border:1.5px solid rgba(0,0,0,.22); background: var(--c);
+  }
   .nb-swatch{
-    flex:0 0 auto; width:30px; height:30px; border-radius:50%;
+    flex:0 0 auto; width:40px; height:40px; border-radius:50%;
     border:2px solid rgba(0,0,0,.18); background: var(--c); cursor:pointer;
     transition: transform .12s ease;
   }
   .nb-swatch:active{ transform: scale(.88); }
   .nb-swatch.active{ border-color: var(--accent); box-shadow: 0 0 0 3px var(--panel-bg), 0 0 0 5px var(--accent); }
+  /* hide the blinking text caret while a popover is open — it would otherwise
+     paint on top of the popover (the caret renders above stacking contexts). */
+  .note-body.caret-hidden{ caret-color: transparent !important; }
 
-  /* ---- style popover (font + size), anchored under the "Aa" button ---- */
-  #stylePop{
+  /* ---- popovers (color, and font+size), anchored under their nb buttons ---- */
+  #stylePop, #colorPop{
     position:fixed; z-index:150001; display:none;
     width: min(290px, calc(100vw - 20px));
     background: var(--panel-bg); border:1px solid var(--bar-border);
     border-radius:16px; padding:12px; box-shadow: 0 18px 50px rgba(0,0,0,.45);
   }
-  #stylePop.open{ display:block; }
-  #stylePop .pop-label{
+  #stylePop.open, #colorPop.open{ display:block; }
+  #stylePop .pop-label, #colorPop .pop-label{
     font:700 11px var(--ui-font); letter-spacing:.6px; text-transform:uppercase;
     color: var(--panel-muted); margin:2px 4px 7px;
   }
+  #colorPop{ width:auto; }
+  #colorPop .pop-colors{ display:grid; grid-template-columns:repeat(3, 1fr); gap:14px; justify-items:center; padding:2px 4px 4px; }
   #stylePop .pop-font{ display:flex; flex-direction:column; gap:3px; margin-bottom:12px; }
   #stylePop .pop-font button{
     text-align:left; border:none; background:transparent; cursor:pointer;
@@ -871,6 +880,12 @@
     background: var(--panel-soft-bg); color: var(--panel-text); font:600 15px var(--ui-font);
   }
   #stylePop .pop-size button.active{ background: var(--btn-primary-bg); color: var(--btn-primary-text); }
+
+  /* draggable handle at the top of the bottom-sheet menu (swipe down to close) */
+  #menuSheet .sheet-handle{
+    padding:10px 0 6px; margin:-2px 0 4px; cursor:grab; touch-action:none;
+  }
+  #menuSheet .grip{ margin:0 auto; }
 </style>
 </head>
 <body>
@@ -1106,7 +1121,8 @@
 
   /* mobile app-like UI (built lazily in setupMobileUI; null on desktop) */
   let activeNote = null;           // the note whose controls #noteBar is showing
-  let noteBarEl = null, stylePopEl = null, styleBtnEl = null;
+  let noteBarEl = null, styleBtnEl = null, colorBtnEl = null, colorDotEl = null;
+  let stylePopEl = null, colorPopEl = null;
   let nbMoveLeft = null, nbMoveRight = null;
   const nbSwatches = [], popFontBtns = [], popSizeBtns = [];
 
@@ -2361,7 +2377,8 @@
     const ae = document.activeElement;
     const editing = !!(ae && ae.isContentEditable);
     if (e.key === "Escape"){
-      if (stylePopEl && stylePopEl.classList.contains("open")){ stylePopEl.classList.remove("open"); return; }
+      if ((stylePopEl && stylePopEl.classList.contains("open")) ||
+          (colorPopEl && colorPopEl.classList.contains("open"))){ closePops(); return; }
       if (menuSheetEl && menuSheetEl.classList.contains("open")){ closeMenu(); return; }
       if (!importConfirmEl.hidden){ pendingImport = null; closeImportConfirm(); return; }
       if (!exportEl.hidden){ closeExport(); return; }
@@ -2456,11 +2473,15 @@
     buildFab();
     buildMenuSheet();
     buildNoteBar();
-    // close the style popover (and only it) when tapping elsewhere
+    // close an open popover (color / style) when tapping outside it
     document.addEventListener("pointerdown", e => {
-      if (!stylePopEl || !stylePopEl.classList.contains("open")) return;
-      if (stylePopEl.contains(e.target) || (styleBtnEl && styleBtnEl.contains(e.target))) return;
-      stylePopEl.classList.remove("open");
+      const styleOpen = stylePopEl && stylePopEl.classList.contains("open");
+      const colorOpen = colorPopEl && colorPopEl.classList.contains("open");
+      if (!styleOpen && !colorOpen) return;
+      const t = e.target;
+      if (stylePopEl.contains(t) || colorPopEl.contains(t)) return;
+      if ((styleBtnEl && styleBtnEl.contains(t)) || (colorBtnEl && colorBtnEl.contains(t))) return;
+      closePops();
     });
   }
 
@@ -2512,9 +2533,13 @@
 
     const sheet = document.createElement("div");
     sheet.className = "sheet";
+    const handle = document.createElement("div");
+    handle.className = "sheet-handle";
     const grip = document.createElement("div");
     grip.className = "grip";
-    sheet.appendChild(grip);
+    handle.appendChild(grip);
+    sheet.appendChild(handle);
+    enableSheetSwipe(sheet);
 
     const addItem = (label, iconPaths, onClick, opts) => {
       const it = document.createElement("button");
@@ -2548,6 +2573,36 @@
   function openMenu(){ updateMenuThemeLabel(); menuSheetEl.classList.add("open"); }
   function closeMenu(){ if (menuSheetEl) menuSheetEl.classList.remove("open"); }
 
+  // Drag the sheet down (from the handle or any non-button area) to dismiss it.
+  function enableSheetSwipe(sheet){
+    let sd = null;
+    const onMove = e => {
+      if (!sd) return;
+      const dy = Math.max(0, e.clientY - sd.startY);
+      sd.dy = dy;
+      sheet.style.transform = "translateY(" + dy + "px)";
+    };
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+      if (!sd) return;
+      const dy = sd.dy; sd = null;
+      sheet.style.transition = "";      // restore the spring-y CSS transition
+      sheet.style.transform = "";       // snap back (open) or animate out (close)
+      if (dy > 90) closeMenu();
+    };
+    sheet.addEventListener("pointerdown", e => {
+      if (e.button != null && e.button !== 0) return;
+      if (e.target.closest(".sheet-item")) return;   // let menu buttons take their taps
+      sd = { startY: e.clientY, dy: 0 };
+      sheet.style.transition = "none";               // follow the finger 1:1
+      window.addEventListener("pointermove", onMove);
+      window.addEventListener("pointerup", onUp);
+      window.addEventListener("pointercancel", onUp);
+    });
+  }
+
   /* ---- note bar: per-note controls, pinned above the keyboard ---- */
   function buildNoteBar(){
     noteBarEl = document.createElement("div");
@@ -2570,26 +2625,17 @@
 
     row.appendChild(makeSep());
 
-    // colors
-    const swWrap = document.createElement("div");
-    swWrap.className = "nb-swatches";
-    PALETTE.forEach(c => {
-      const s = document.createElement("button");
-      s.className = "nb-swatch";
-      s.dataset.color = c.id;
-      s.title = c.label;
-      s.setAttribute("aria-label", c.label);
-      keepFocus(s);
-      s.addEventListener("click", e => {
-        e.stopPropagation();
-        if (activeNote){ setColor(activeNote, c.id); refreshNoteBar(); }
-      });
-      swWrap.appendChild(s);
-      nbSwatches.push(s);
-    });
-    row.appendChild(swWrap);
-
-    row.appendChild(makeSep());
+    // color (opens the color popover — keeps the bar compact, no scrolling)
+    colorBtnEl = document.createElement("button");
+    colorBtnEl.className = "nb-btn";
+    colorBtnEl.title = "Color";
+    colorBtnEl.setAttribute("aria-label", "Color");
+    colorDotEl = document.createElement("span");
+    colorDotEl.className = "nb-dot";
+    colorBtnEl.appendChild(colorDotEl);
+    keepFocus(colorBtnEl);
+    colorBtnEl.addEventListener("click", e => { e.stopPropagation(); togglePop(colorPopEl, colorBtnEl); });
+    row.appendChild(colorBtnEl);
 
     // font + size (opens the style popover)
     styleBtnEl = document.createElement("button");
@@ -2598,7 +2644,7 @@
     styleBtnEl.setAttribute("aria-label", "Font and size");
     styleBtnEl.textContent = "Aa";
     keepFocus(styleBtnEl);
-    styleBtnEl.addEventListener("click", e => { e.stopPropagation(); toggleStylePop(); });
+    styleBtnEl.addEventListener("click", e => { e.stopPropagation(); togglePop(stylePopEl, styleBtnEl); });
     row.appendChild(styleBtnEl);
 
     row.appendChild(makeSep());
@@ -2643,9 +2689,35 @@
     noteBarEl.appendChild(row);
     document.body.appendChild(noteBarEl);
 
+    buildColorPop(keepFocus);
     buildStylePop(keepFocus);
   }
   function makeSep(){ const s = document.createElement("span"); s.className = "nb-sep"; return s; }
+
+  function buildColorPop(keepFocus){
+    colorPopEl = document.createElement("div");
+    colorPopEl.id = "colorPop";
+    colorPopEl.setAttribute("role", "menu");
+    const lbl = document.createElement("div"); lbl.className = "pop-label"; lbl.textContent = "Color";
+    colorPopEl.appendChild(lbl);
+    const wrap = document.createElement("div"); wrap.className = "pop-colors";
+    PALETTE.forEach(c => {
+      const s = document.createElement("button");
+      s.className = "nb-swatch";
+      s.dataset.color = c.id;
+      s.title = c.label;
+      s.setAttribute("aria-label", c.label);
+      keepFocus(s);
+      s.addEventListener("click", e => {
+        e.stopPropagation();
+        if (activeNote){ setColor(activeNote, c.id); refreshNoteBar(); closePops(); }
+      });
+      wrap.appendChild(s);
+      nbSwatches.push(s);
+    });
+    colorPopEl.appendChild(wrap);
+    document.body.appendChild(colorPopEl);
+  }
 
   function buildStylePop(keepFocus){
     stylePopEl = document.createElement("div");
@@ -2683,16 +2755,35 @@
 
     document.body.appendChild(stylePopEl);
   }
-  function toggleStylePop(){
-    if (!stylePopEl) return;
-    if (stylePopEl.classList.contains("open")){ stylePopEl.classList.remove("open"); return; }
-    refreshNoteBar();
-    const r = styleBtnEl.getBoundingClientRect();
+  // Hide/show the text caret on the active note while a popover is open, so it
+  // never paints on top of the popover.
+  function setCaretHidden(hidden){
+    if (!activeNote) return;
+    const v = view.get(activeNote.id);
+    if (v && v.body) v.body.classList.toggle("caret-hidden", !!hidden);
+  }
+  function positionPop(popEl, anchor){
+    const r = anchor.getBoundingClientRect();
     const popW = Math.min(290, window.innerWidth - 20);
     const left = clamp(r.left, 10, window.innerWidth - popW - 10);
-    stylePopEl.style.left = left + "px";
-    stylePopEl.style.top = (r.bottom + 8) + "px";
-    stylePopEl.classList.add("open");
+    popEl.style.left = left + "px";
+    popEl.style.top = (r.bottom + 8) + "px";
+  }
+  function closePops(){
+    let any = false;
+    if (stylePopEl && stylePopEl.classList.contains("open")){ stylePopEl.classList.remove("open"); any = true; }
+    if (colorPopEl && colorPopEl.classList.contains("open")){ colorPopEl.classList.remove("open"); any = true; }
+    setCaretHidden(false);
+    return any;
+  }
+  function togglePop(popEl, anchor){
+    if (!popEl) return;
+    if (popEl.classList.contains("open")){ closePops(); return; }
+    closePops();              // only one popover open at a time
+    refreshNoteBar();
+    positionPop(popEl, anchor);
+    popEl.classList.add("open");
+    setCaretHidden(true);
   }
 
   // Show the bar for a note, reflecting its current color / font / size / page.
@@ -2704,7 +2795,7 @@
     document.documentElement.classList.add("editing-note");
   }
   function closeNoteBar(){
-    if (stylePopEl) stylePopEl.classList.remove("open");
+    closePops();              // also restores the caret on the active note
     if (noteBarEl) noteBarEl.classList.remove("open");
     document.documentElement.classList.remove("editing-note");
     const a = activeNote; activeNote = null;
@@ -2716,6 +2807,7 @@
   function refreshNoteBar(){
     if (!activeNote) return;
     const color = activeNote.color;
+    if (colorDotEl) colorDotEl.dataset.color = color;   // the bar's color button
     nbSwatches.forEach(s => s.classList.toggle("active", s.dataset.color === color));
     const page = activeNote.page || 0;
     if (nbMoveLeft)  nbMoveLeft.hidden  = page <= 0;
