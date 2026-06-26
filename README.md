@@ -24,6 +24,11 @@ Open `index.html` (double-click the file, or serve the folder). That's it.
   (within a min and max size), and any text past the note's height scrolls inside it.
 - **Change Color** — hover a note and tap a color dot (or pick the color for new
   notes from the top bar).
+- **Font** — hover a note and choose from 5 fonts: Sans Serif, Serif, Monospace,
+  Handwritten, or Rounded. Each note can use a different font. All fonts use
+  system font stacks, so they work offline on every device.
+- **Text Size** — hover a note and pick Small, Medium, Large, or X-Large. The
+  size applies to all text in the note, including rendered Markdown content.
 - **Delete** — hover and hit **×**. There's an **Undo** (also <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Z</kbd>).
 - **Rename the board** — click the board name in the top bar and type. The browser
   tab updates to match.
