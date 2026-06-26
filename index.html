@@ -203,6 +203,8 @@
     transform-origin: 50% 50%;
     transition: transform .55s cubic-bezier(.34,1.56,.64,1), box-shadow .3s ease;
     will-change: transform;
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
   }
   .note:hover .note-inner{
     box-shadow:
