@@ -523,6 +523,21 @@
   }
   .credit a:hover{ color: var(--accent); border-bottom-color: var(--accent); }
 
+  /* On mobile the page pager sits along the bottom, so the footer credit moves
+     into the help modal instead (see .modal-credit). */
+  .touch .credit{ display:none; }
+  .modal-credit{
+    display:none;                 /* shown only on touch, inside the help modal */
+    margin:14px 0 0; text-align:center;
+    font-size:12.5px; color: var(--credit-text);
+  }
+  .modal-credit a{
+    color: var(--panel-heading); font-weight:600; text-decoration:none;
+    border-bottom:1px solid var(--credit-text);
+  }
+  .modal-credit a:hover{ color: var(--accent); border-bottom-color: var(--accent); }
+  .touch .modal-credit{ display:block; }
+
   /* ---------------- toasts ---------------- */
   .toasts{
     position:fixed; left:50%; bottom:44px; transform: translateX(-50%);
@@ -812,6 +827,9 @@
         </div>
       </div>
       <button class="close" id="helpClose">Got it</button>
+      <p class="modal-credit">
+        Built and maintained by <a href="https://jeremehancock.com" target="_blank" rel="noopener noreferrer">Jereme Hancock</a>
+      </p>
     </div>
   </div>
 
@@ -944,8 +962,6 @@
   /* ---------------- helpers ---------------- */
   const clamp = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
 
-  // best-effort haptic tap — Android honors navigator.vibrate; iOS Safari no-ops
-  function haptic(ms){ try { if (navigator.vibrate) navigator.vibrate(ms || 10); } catch(_){} }
   function prefersReducedMotion(){
     try { return matchMedia("(prefers-reduced-motion: reduce)").matches; } catch(_){ return false; }
   }
@@ -1874,7 +1890,6 @@
     renderPager();
     updateMoveButtons();
     refreshEmptyHint();
-    if (changed) haptic(8);
     save();
   }
   function addPage(){
@@ -1882,7 +1897,6 @@
     pageCount++;
     syncPages();
     goToPage(pageCount - 1, { animate: true });
-    haptic(12);
   }
   // Remove an empty page (renumbering later pages down). Notes are never lost.
   function removePage(i){
@@ -1893,7 +1907,6 @@
     if (currentPage > pageCount - 1) currentPage = pageCount - 1;
     syncPages();
     goToPage(currentPage, { animate: true });
-    haptic(12);
     save();
   }
   // Send a note to another page (toolbar ‹ ›). Creates a page off the end if
@@ -1910,7 +1923,6 @@
     if (target === from) return;
     const v = view.get(note.id);
     const dir = target > from ? "right" : "left";
-    haptic(10);
     const commit = () => {
       note.page = target;
       syncPages();
@@ -2234,6 +2246,10 @@
       text:`Pick a color up top for new notes, or ${hov.toLowerCase()} a note to change its color.\n\n${hov} to find the × to delete — there's an Undo.` });
     addNote(W * 0.40, H * 0.55, { color:"pink",
       text:"Heads up: notes live only in THIS browser (localStorage).\n\nUse the export/import option to save your board." });
+    // Style showcase — uses the Handwritten font at the Large size to point out
+    // that each note's font and text size can be changed.
+    addNote(W * 0.20, H * 0.60, { color:"purple", font:"hand", fontSize:"large",
+      text:`Make it yours ✍️\n\n${hov} a note to change its font & text size.\n\nThis one is Handwritten + Large!` });
     // Markdown showcase — renders when online; shows the raw syntax offline.
     addNote(W * 0.72, H * 0.26, { color:"green", w:360, h:360,
       text:"## Try Markdown ✍️\n---\n### Headings\n# H1\n## H2\n### H3\n---\n- Bullet lists\n- Like this one\n---\n**Bold text** and *italic text*\n`inline code`\n~~strikethrough~~" });
