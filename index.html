@@ -361,11 +361,20 @@
     .note-resize{ opacity:.6; transform: scale(1); }
   }
 
-  /* ---- touch: drag anywhere to move; tap a note to edit/scroll its text ---- */
+  /* ---- touch: drag anywhere to move; swipe a long note to scroll; tap to edit ---- */
   /* object mode — the whole note is a clean drag surface (no caret/selection) */
   .touch .note-body{
     touch-action: none;
     -webkit-user-select: none; user-select: none;
+  }
+  /* a long (overflowing) note scrolls its text on a vertical finger-swipe with
+     native momentum — so you can read it without opening the keyboard. pan-y hands
+     vertical pans to the browser; horizontal / diagonal drags fall through to JS
+     and move the note (see onPointerMove). Selection stays off so a swipe never
+     highlights text. */
+  .touch .note.has-overflow .note-body{
+    touch-action: pan-y;
+    -webkit-overflow-scrolling: touch;
   }
   /* edit mode — the tapped note becomes editable and scrolls natively */
   .touch .note.editing .note-body{
@@ -786,7 +795,7 @@
           <ul>
             <li id="hAdd"><b>Add</b> — double-click the board, or hit <b>+ Note</b>.</li>
             <li id="hType"><b>Type</b> — click a note and start writing.</li>
-            <li><b>Move</b> — just drag it. It lifts, tilts and settles back.</li>
+            <li id="hMove"><b>Move</b> — just drag it. It lifts, tilts and settles back.</li>
             <li id="hResize"><b>Resize</b> — drag the corner grip. Notes keep their proportions; long text scrolls inside.</li>
           </ul>
         </div>
@@ -1579,14 +1588,22 @@
 
     bringToFront(note);
 
+    const v = view.get(note.id);
     drag = {
       note, el,
+      body: v ? v.body : null,
       startX: e.clientX, startY: e.clientY,
       grabX: e.clientX - note.x, grabY: e.clientY - note.y,
       px: e.clientX, py: e.clientY,
       w: el.offsetWidth, h: el.offsetHeight,
       lastX: note.x,
       tilt: parseFloat(el.style.getPropertyValue("--r")) || note.r,
+      // touch: a long (overflowing) note scrolls its text on a vertical swipe
+      // (the browser pans it natively), so a vertical drag steps aside instead of
+      // moving the note. Record where scrolling began to tell a scroll from a tap.
+      canScroll: isTouch && el.classList.contains("has-overflow"),
+      scrollAtStart: v ? v.body.scrollTop : 0,
+      steppedAside: false,   // set once a vertical swipe is handed to native scroll
       moving: false,
       raf: 0,
       linkHref: link ? link.href : null,
@@ -1605,6 +1622,10 @@
     if (!drag.moving){
       const dx = e.clientX - drag.startX, dy = e.clientY - drag.startY;
       if (dx*dx + dy*dy < DRAG_THRESHOLD * DRAG_THRESHOLD) return;  // still a click
+      // On touch, a mostly-vertical drag on a scrollable note is a scroll, not a
+      // move: leave it to the browser's native pan (pan-y) and don't hijack it as a
+      // drag. Horizontal / diagonal drags fall through and move the note as usual.
+      if (drag.canScroll && Math.abs(dy) > Math.abs(dx)){ drag.steppedAside = true; return; }
       // promote to a drag
       drag.moving = true;
       drag.el.classList.add("dragging");
@@ -1646,11 +1667,19 @@
     const d = drag; drag = null;
     cancelAnimationFrame(d.raf);
 
+    // a vertical swipe scrolled the note's text natively: the gesture ends as a
+    // pointercancel (browser took over) or simply leaves scrollTop changed — either
+    // way it was a scroll, not a tap, so it must not open edit mode / the keyboard.
+    const scrolled = !!d.body && d.body.scrollTop !== d.scrollAtStart;
+
     if (d.moving){
       d.el.classList.remove("dragging");
       document.body.classList.remove("dragging");
       // spring back to the resting angle (CSS transition on .note-inner)
       d.el.style.setProperty("--r", d.note.r + "deg");
+    } else if (e.type === "pointercancel" || scrolled || d.steppedAside){
+      // a vertical swipe (handed to native scroll) — never a tap, so don't edit.
+      // nothing to do beyond persisting the bring-to-front below
     } else if (d.linkHref){
       // a tap/click on a rendered link -> open it in a new tab, don't enter edit mode
       window.open(d.linkHref, "_blank", "noopener,noreferrer");
@@ -2256,7 +2285,8 @@
     if (!isTouch) return;
     const set = (id, html) => { const el = document.getElementById(id); if (el) el.innerHTML = html; };
     set("hAdd",    "<b>Add</b> — double-tap the board, or tap <b>+ Note</b>.");
-    set("hType",   "<b>Type</b> — tap a note to write or scroll its text; tap out when done.");
+    set("hType",   "<b>Type</b> — tap a note to write; tap out when done.");
+    set("hMove",   "<b>Move &amp; scroll</b> — drag a note to move it. On a long note, swipe up/down to scroll the text — no keyboard needed; drag sideways to move it.");
     set("hResize", "<b>Resize</b> — drag the corner grip. Notes keep their proportions; long text scrolls inside.");
     set("hColor",  "<b>Change Color</b> — tap a note, then the color button to pick a new color.");
     set("hDelete", "<b>Delete</b> — tap a note, then hit <b>×</b>.");
