@@ -416,13 +416,12 @@
 
   /* font & size pickers inside note toolbar */
   .note-tools select{
-    height:22px; padding:0 4px; border:1px solid rgba(0,0,0,.14);
+    height:26px; padding:1px 18px 1px 7px; border:1px solid rgba(0,0,0,.14);
     border-radius:6px; background:rgba(255,255,255,.85); color:#222;
-    font-size:11px; font-family:var(--ui-font); cursor:pointer;
+    font-size:12.5px; font-family:var(--ui-font); cursor:pointer;
     outline:none; -webkit-appearance:none; appearance:none;
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5' viewBox='0 0 8 5'%3E%3Cpath d='M0 0l4 5 4-5z' fill='%23666'/%3E%3C/svg%3E");
-    background-repeat: no-repeat; background-position: right 4px center;
-    padding-right:14px;
+    background-repeat: no-repeat; background-position: right 6px center;
   }
   .note-tools select:hover{ border-color:rgba(0,0,0,.3); }
 
@@ -1036,13 +1035,6 @@
       tools.appendChild(dot);
     });
     const sep = document.createElement("span"); sep.className = "sep"; tools.appendChild(sep);
-    const del = document.createElement("button");
-    del.className = "del"; del.title = "Delete note"; del.setAttribute("aria-label", "Delete note");
-    del.innerHTML = "&times;";
-    del.addEventListener("click", e => { e.stopPropagation(); deleteNote(note.id); });
-    tools.appendChild(del);
-
-    const sep2 = document.createElement("span"); sep2.className = "sep"; tools.appendChild(sep2);
 
     const fontSel = document.createElement("select");
     fontSel.title = "Font";
@@ -1067,6 +1059,13 @@
     });
     sizeSel.addEventListener("change", e => { e.stopPropagation(); setSize(note, sizeSel.value); });
     tools.appendChild(sizeSel);
+
+    const sep2 = document.createElement("span"); sep2.className = "sep"; tools.appendChild(sep2);
+    const del = document.createElement("button");
+    del.className = "del"; del.title = "Delete note"; del.setAttribute("aria-label", "Delete note");
+    del.innerHTML = "&times;";
+    del.addEventListener("click", e => { e.stopPropagation(); deleteNote(note.id); });
+    tools.appendChild(del);
 
     // controls must never start a drag
     tools.addEventListener("pointerdown", e => e.stopPropagation());
