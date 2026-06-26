@@ -22,8 +22,8 @@ Open `index.html` (double-click the file, or serve the folder). That's it.
   springs back to rest when you let go.
 - **Resize** — drag the corner grip. Notes stay in tidy sticky-note proportions
   (within a min and max size), and any text past the note's height scrolls inside it.
-- **Change Color** — hover a note and tap a color dot (or pick the color for new
-  notes from the top bar).
+- **Change Color** — hover a note and click the color button to pick a new color
+  (or pick the color for new notes from the top bar).
 - **Font** — hover a note and choose from 5 fonts: Sans Serif, Serif, Monospace,
   Handwritten, or Rounded. Each note can use a different font. All fonts use
   system font stacks, so they work offline on every device.
