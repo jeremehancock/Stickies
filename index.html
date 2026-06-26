@@ -82,7 +82,6 @@
     --btn-soft-bg: #eef0f3;
     --btn-soft-bg-hover: #e3e6ea;
 
-    --swatch-ring: rgba(255,255,255,.92);
     --name-hover-bg: rgba(0,0,0,.06);
 
     --credit-text: rgba(0,0,0,.55);
@@ -119,7 +118,6 @@
     --btn-soft-bg: rgba(255,255,255,.10);
     --btn-soft-bg-hover: rgba(255,255,255,.16);
 
-    --swatch-ring: rgba(255,255,255,.28);
     --name-hover-bg: rgba(255,255,255,.10);
 
     --credit-text: rgba(255,255,255,.55);
@@ -135,7 +133,7 @@
     --kbd-text: #dcdde1;
   }
 
-  /* ---- color definitions (drive notes, swatches and dots) ---- */
+  /* ---- color definitions (drive notes and the per-note color dots) ---- */
   [data-color="yellow"]{ --paper:#ffe79c; --paper-2:#fff4c4; --c:#ffd560; }
   [data-color="pink"]  { --paper:#ffc4d6; --paper-2:#ffdbe6; --c:#ff8fb0; }
   [data-color="green"] { --paper:#bcebbf; --paper-2:#d8f6da; --c:#7fd585; }
@@ -484,15 +482,6 @@
   .board-name:hover{ background: var(--name-hover-bg); }
   .board-name:focus{ background: var(--name-hover-bg); box-shadow: inset 0 0 0 1px var(--bar-border); }
   .board-name:empty::before{ content: attr(data-placeholder); color: var(--hint); }
-  .swatches{ display:flex; gap:8px; padding:0 4px; }
-  .swatch{
-    width:21px; height:21px; padding:0; border-radius:50%;
-    border:2px solid var(--swatch-ring); background: var(--c);
-    cursor:pointer; box-shadow: 0 1px 3px rgba(0,0,0,.20);
-    transition: transform .12s ease;
-  }
-  .swatch:hover{ transform: translateY(-2px) scale(1.07); }
-  .swatch.active{ outline:2px solid var(--accent); outline-offset:2px; }
   .actions{ display:flex; gap:6px; align-items:center; }
   .btn{ border:none; cursor:pointer; border-radius:10px; font: inherit; color: var(--btn-text); }
   .btn.primary{ background: var(--btn-primary-bg); color: var(--btn-primary-text); padding:9px 15px; font-weight:600; white-space:nowrap; }
@@ -747,7 +736,6 @@
             role="textbox" aria-label="Board name" title="Click to rename this board"
             data-placeholder="Name this board"></span>
     </div>
-    <div class="swatches" id="swatches" role="group" aria-label="Color for new notes"></div>
     <div class="actions">
       <button id="btnAdd" class="btn primary" title="Add a note (or double-click the board)">+ Note</button>
       <button id="btnExport" class="btn icon" title="Export this board to a file" aria-label="Export this board to a file">
@@ -935,7 +923,6 @@
   const SIZE_PX = Object.fromEntries(SIZES.map(s => [s.id, s.px]));
 
   const board     = document.getElementById("board");
-  const swatchBar = document.getElementById("swatches");
   const emptyHint = document.getElementById("emptyHint");
   const toastWrap = document.getElementById("toasts");
   const helpEl    = document.getElementById("help");
@@ -953,7 +940,6 @@
   const noteById = new Map();      // id -> note object
   const view = new Map();          // id -> { el, inner, body }
   let maxZ = 1;
-  let activeColor = "yellow";
   let boardName = "";
   let pageCount = 1;               // mobile: number of pages (desktop ignores)
   let currentPage = 0;             // mobile: the page currently in view
@@ -971,6 +957,12 @@
   function uid(){
     try { if (window.crypto && crypto.randomUUID) return crypto.randomUUID(); } catch(_){}
     return "n" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  }
+
+  // New notes get a random color from the palette; each note can still be
+  // recolored individually from its own toolbar.
+  function randomColor(){
+    return PALETTE[Math.floor(Math.random() * PALETTE.length)].id;
   }
 
   function getText(body){ return body.innerText.replace(/\n$/, ""); }
@@ -1074,7 +1066,7 @@
   function save(){
     clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {
-      try { localStorage.setItem(STORE_KEY, JSON.stringify({ notes, activeColor, boardName, pageCount, currentPage })); }
+      try { localStorage.setItem(STORE_KEY, JSON.stringify({ notes, boardName, pageCount, currentPage })); }
       catch(e){ toast("Couldn't save — storage may be full or blocked."); }
     }, 150);
   }
@@ -1085,7 +1077,6 @@
       const data = JSON.parse(raw);
       if (!data || !Array.isArray(data.notes)) return false;
       notes = data.notes;
-      if (data.activeColor) activeColor = data.activeColor;
       if (typeof data.boardName === "string") boardName = data.boardName;
       adoptPages(data);
       return true;
@@ -1338,7 +1329,7 @@
       id: uid(),
       x: x, y: y,
       r: (Math.random() * 6 - 3),       // gentle -3deg..3deg resting tilt
-      color: opts.color || activeColor,
+      color: opts.color || randomColor(),
       text: opts.text || "",
       w: opts.w || NOTE_W,
       h: opts.h || NOTE_H,
@@ -1451,7 +1442,6 @@
       version: 2,
       exportedAt: new Date().toISOString(),
       boardName: boardName,
-      activeColor: activeColor,
       pageCount: pageCount,
       notes: notes.map(n => ({
         id: n.id,
@@ -1559,8 +1549,6 @@
 
     boardName = (typeof data.boardName === "string") ? data.boardName.replace(/\s+/g, " ").trim() : "";
     applyBoardName();
-
-    if (COLOR_IDS.has(data.activeColor)) setActiveColor(data.activeColor);
 
     notes.forEach(renderNote);
     if (isTouch) syncPages();
@@ -2028,23 +2016,7 @@
     focusNote(addNote(x, y));
   }
 
-  /* ---------------- toolbar / swatches ---------------- */
-  PALETTE.forEach(c => {
-    const b = document.createElement("button");
-    b.className = "swatch";
-    b.dataset.color = c.id;
-    b.title = c.label + " — color for new notes";
-    b.setAttribute("aria-label", c.label);
-    b.addEventListener("click", () => setActiveColor(c.id));
-    swatchBar.appendChild(b);
-  });
-  function setActiveColor(id){
-    activeColor = id;
-    Array.prototype.forEach.call(swatchBar.children, s =>
-      s.classList.toggle("active", s.dataset.color === id));
-    save();
-  }
-
+  /* ---------------- toolbar ---------------- */
   document.getElementById("btnAdd").addEventListener("click", addNoteCentered);
   document.getElementById("btnClear").addEventListener("click", requestClearAll);
   document.getElementById("btnHelp").addEventListener("click", openHelp);
@@ -2246,7 +2218,7 @@
     const welcome  = { color:"yellow",
       text:`Welcome to Stickies 👋\n\n• ${dbl} the board to add a note\n• Drag to move — it lifts & tilts\n• ${tap} to type` };
     const colorTip = { color:"blue",
-      text:`Pick a color up top for new notes, or ${hov.toLowerCase()} a note to change its color.\n\n${hov} to find the × to delete — there's an Undo.` };
+      text:`Every new note gets a random color — ${hov.toLowerCase()} a note to change its color.\n\n${hov} to find the × to delete — there's an Undo.` };
     const headsUp  = { color:"pink",
       text:"Heads up: notes live only in THIS browser (localStorage).\n\nUse the export/import option to save your board." };
     // Style showcase — Handwritten font at the Large size to point out that each
@@ -2302,7 +2274,6 @@
     if (isTouch) document.documentElement.classList.add("touch");
     const had = load();
     notes.forEach(n => { maxZ = Math.max(maxZ, n.z || 1); });
-    setActiveColor(activeColor);
     applyTheme(theme, false);   // sync the toggle's label & meta to the active theme
     applyBoardName();
     if (had && notes.length){
