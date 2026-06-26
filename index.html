@@ -757,7 +757,20 @@
 
   /* lift the pager / toasts clear of the home indicator */
   .touch .pager{ bottom: calc(26px + env(safe-area-inset-bottom, 0px)); }
-  .touch .toasts{ bottom: calc(86px + env(safe-area-inset-bottom, 0px)); }
+  .touch .toasts{ bottom: calc(86px + env(safe-area-inset-bottom, 0px)); left:0; right:0; transform:none; padding:0 14px; }
+
+  /* a bigger, clearer snackbar on mobile — the Undo action stands out */
+  .touch .toast{
+    width:100%; max-width:480px; box-sizing:border-box;
+    padding:15px 15px 15px 18px; font-size:15px; border-radius:14px;
+    box-shadow: 0 16px 40px rgba(0,0,0,.5);
+  }
+  .touch .toast.has-action{ justify-content:space-between; }
+  .touch .toast button{
+    padding:11px 20px; font-size:15px; font-weight:700;
+    background:#ffd560; color:#26262b;
+  }
+  .touch .toast button:hover{ background:#ffd560; }
 
   /* while a note is being styled, the top header + bottom chrome step out of
      the way so the note bar and the note itself own the screen. */
@@ -833,7 +846,7 @@
   }
   .nb-btn:active{ background: var(--btn-icon-bg-hover); }
   .nb-btn[hidden]{ display:none; }
-  .nb-btn.done{ width:auto; padding:0 18px; font:600 15px var(--ui-font);
+  .nb-btn.done{ width:auto; padding:0 18px; margin-left:auto; font:600 15px var(--ui-font);
     background: var(--btn-primary-bg); color: var(--btn-primary-text); }
   .nb-btn.danger:active{ background: rgba(255,93,93,.16); color:#ff5d5d; }
   .nb-sep{ flex:0 0 auto; width:1px; height:26px; background: var(--bar-border); margin:0 2px; }
@@ -2362,6 +2375,7 @@
       setTimeout(() => t.remove(), 400);
     };
     if (action){
+      t.classList.add("has-action");
       const b = document.createElement("button");
       b.textContent = action.label;
       b.addEventListener("click", () => { action.fn(); dismiss(); });
@@ -2369,7 +2383,8 @@
     }
     toastWrap.appendChild(t);
     requestAnimationFrame(() => t.classList.add("show"));
-    timer = setTimeout(dismiss, 5000);
+    // give actionable toasts (e.g. Undo) longer to be noticed and tapped on a phone
+    timer = setTimeout(dismiss, action ? (isTouch ? 7000 : 6000) : 5000);
   }
 
   /* ---------------- keyboard ---------------- */
@@ -2483,6 +2498,13 @@
       if ((styleBtnEl && styleBtnEl.contains(t)) || (colorBtnEl && colorBtnEl.contains(t))) return;
       closePops();
     });
+
+    // keep the note bar pinned to the top of the visible area as the soft
+    // keyboard opens/closes (it scrolls the page on phones)
+    if (window.visualViewport){
+      window.visualViewport.addEventListener("resize", syncNoteBarViewport);
+      window.visualViewport.addEventListener("scroll", syncNoteBarViewport);
+    }
   }
 
   /* ---- header: replace the action cluster with one menu button ---- */
@@ -2612,18 +2634,9 @@
     const row = document.createElement("div");
     row.className = "nb-row";
 
-    // controls must never steal focus from the note being edited, or the soft
-    // keyboard would close — preventDefault on pointerdown keeps the caret.
+    // popover option buttons preventDefault on pointerdown so a tap there doesn't
+    // start a text selection; the note itself is blurred while a popover is open.
     const keepFocus = el => el.addEventListener("pointerdown", e => e.preventDefault());
-
-    // Done — blur the note and dismiss the bar (this one *should* release focus)
-    const done = document.createElement("button");
-    done.className = "nb-btn done";
-    done.textContent = "Done";
-    done.addEventListener("click", closeNoteBar);
-    row.appendChild(done);
-
-    row.appendChild(makeSep());
 
     // color (opens the color popover — keeps the bar compact, no scrolling)
     colorBtnEl = document.createElement("button");
@@ -2633,7 +2646,6 @@
     colorDotEl = document.createElement("span");
     colorDotEl.className = "nb-dot";
     colorBtnEl.appendChild(colorDotEl);
-    keepFocus(colorBtnEl);
     colorBtnEl.addEventListener("click", e => { e.stopPropagation(); togglePop(colorPopEl, colorBtnEl); });
     row.appendChild(colorBtnEl);
 
@@ -2643,7 +2655,6 @@
     styleBtnEl.title = "Font & size";
     styleBtnEl.setAttribute("aria-label", "Font and size");
     styleBtnEl.textContent = "Aa";
-    keepFocus(styleBtnEl);
     styleBtnEl.addEventListener("click", e => { e.stopPropagation(); togglePop(stylePopEl, styleBtnEl); });
     row.appendChild(styleBtnEl);
 
@@ -2655,7 +2666,6 @@
     nbMoveLeft.title = "Move to previous page";
     nbMoveLeft.setAttribute("aria-label", "Move to previous page");
     nbMoveLeft.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>';
-    keepFocus(nbMoveLeft);
     nbMoveLeft.addEventListener("click", () => {
       const n = activeNote; if (!n) return;
       closeNoteBar(); moveNoteToPage(n, (n.page || 0) - 1);
@@ -2667,7 +2677,6 @@
     nbMoveRight.title = "Move to next page";
     nbMoveRight.setAttribute("aria-label", "Move to next page");
     nbMoveRight.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>';
-    keepFocus(nbMoveRight);
     nbMoveRight.addEventListener("click", () => {
       const n = activeNote; if (!n) return;
       closeNoteBar(); moveNoteToPage(n, (n.page || 0) + 1);
@@ -2682,9 +2691,15 @@
     del.title = "Delete note";
     del.setAttribute("aria-label", "Delete note");
     del.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/><path d="M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12"/></svg>';
-    keepFocus(del);
     del.addEventListener("click", () => { if (activeNote) deleteNote(activeNote.id); });
     row.appendChild(del);
+
+    // Done — pinned to the right; releases focus and dismisses the bar
+    const done = document.createElement("button");
+    done.className = "nb-btn done";
+    done.textContent = "Done";
+    done.addEventListener("click", closeNoteBar);
+    row.appendChild(done);
 
     noteBarEl.appendChild(row);
     document.body.appendChild(noteBarEl);
@@ -2762,6 +2777,13 @@
     const v = view.get(activeNote.id);
     if (v && v.body) v.body.classList.toggle("caret-hidden", !!hidden);
   }
+  // Blur the note being edited (dismisses the keyboard and the OS caret/selection
+  // "teardrop" handle, which otherwise paints on top of an open popover).
+  function blurActiveNote(){
+    if (!activeNote) return;
+    const v = view.get(activeNote.id);
+    if (v && document.activeElement === v.body) v.body.blur();
+  }
   function positionPop(popEl, anchor){
     const r = anchor.getBoundingClientRect();
     const popW = Math.min(290, window.innerWidth - 20);
@@ -2780,10 +2802,24 @@
     if (!popEl) return;
     if (popEl.classList.contains("open")){ closePops(); return; }
     closePops();              // only one popover open at a time
-    refreshNoteBar();
-    positionPop(popEl, anchor);
-    popEl.classList.add("open");
+    blurActiveNote();         // styling needs no keyboard; kills the teardrop handle
     setCaretHidden(true);
+    refreshNoteBar();
+    popEl.classList.add("open");
+    syncNoteBarViewport();    // keyboard is dismissing — settle the bar at the top
+    positionPop(popEl, anchor);
+  }
+
+  // Keep the note bar glued to the top of the *visible* viewport. When the soft
+  // keyboard opens, mobile browsers scroll the page to reveal the focused note,
+  // which would otherwise push a `top:0` fixed bar above the visible area.
+  function syncNoteBarViewport(){
+    if (!noteBarEl || !noteBarEl.classList.contains("open")) return;
+    const vv = window.visualViewport;
+    const popOpen = (stylePopEl && stylePopEl.classList.contains("open")) ||
+                    (colorPopEl && colorPopEl.classList.contains("open"));
+    const off = (popOpen || !vv) ? 0 : Math.max(0, vv.offsetTop);
+    noteBarEl.style.transform = off ? ("translateY(" + off + "px)") : "";
   }
 
   // Show the bar for a note, reflecting its current color / font / size / page.
@@ -2793,10 +2829,12 @@
     refreshNoteBar();
     noteBarEl.classList.add("open");
     document.documentElement.classList.add("editing-note");
+    syncNoteBarViewport();
+    setTimeout(syncNoteBarViewport, 300);   // re-settle after the keyboard animates in
   }
   function closeNoteBar(){
     closePops();              // also restores the caret on the active note
-    if (noteBarEl) noteBarEl.classList.remove("open");
+    if (noteBarEl){ noteBarEl.classList.remove("open"); noteBarEl.style.transform = ""; }
     document.documentElement.classList.remove("editing-note");
     const a = activeNote; activeNote = null;
     if (a){
