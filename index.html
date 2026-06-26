@@ -2617,7 +2617,7 @@
     };
 
     const themeItem = addItem("Theme", '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
-      () => { toggleTheme(); updateMenuThemeLabel(); });
+      () => { toggleTheme(); closeMenu(); });
     menuThemeLabel = themeItem.querySelector("span");
 
     addItem("How it works", '<circle cx="12" cy="12" r="9"/><path d="M9.2 9.2a2.8 2.8 0 1 1 4 2.5c-.9.5-1.2 1-1.2 1.8"/><path d="M12 17h.01"/>',
