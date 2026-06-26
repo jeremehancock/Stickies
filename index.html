@@ -2240,19 +2240,38 @@
     const dbl = isTouch ? "Double-tap" : "Double-click";
     const tap = isTouch ? "Tap" : "Click";
     const hov = isTouch ? "Tap" : "Hover";
-    addNote(W * 0.30, H * 0.26, { color:"yellow",
-      text:`Welcome to Stickies 👋\n\n• ${dbl} the board to add a note\n• Drag to move — it lifts & tilts\n• ${tap} to type` });
-    addNote(W * 0.53, H * 0.30, { color:"blue",
-      text:`Pick a color up top for new notes, or ${hov.toLowerCase()} a note to change its color.\n\n${hov} to find the × to delete — there's an Undo.` });
-    addNote(W * 0.40, H * 0.55, { color:"pink",
-      text:"Heads up: notes live only in THIS browser (localStorage).\n\nUse the export/import option to save your board." });
-    // Style showcase — uses the Handwritten font at the Large size to point out
-    // that each note's font and text size can be changed.
-    addNote(W * 0.20, H * 0.60, { color:"purple", font:"hand", fontSize:"large",
-      text:`Make it yours ✍️\n\n${hov} a note to change its font & text size.\n\nThis one is Handwritten + Large!` });
+
+    const welcome  = { color:"yellow",
+      text:`Welcome to Stickies 👋\n\n• ${dbl} the board to add a note\n• Drag to move — it lifts & tilts\n• ${tap} to type` };
+    const colorTip = { color:"blue",
+      text:`Pick a color up top for new notes, or ${hov.toLowerCase()} a note to change its color.\n\n${hov} to find the × to delete — there's an Undo.` };
+    const headsUp  = { color:"pink",
+      text:"Heads up: notes live only in THIS browser (localStorage).\n\nUse the export/import option to save your board." };
+    // Style showcase — Handwritten font at the Large size to point out that each
+    // note's font and text size can be changed.
+    const styleTip = { color:"purple", font:"hand", fontSize:"large",
+      text:`Make it yours ✍️\n\n${hov} a note to change its font & text size.\n\nThis one is Handwritten + Large!` };
     // Markdown showcase — renders when online; shows the raw syntax offline.
-    addNote(W * 0.72, H * 0.26, { color:"green", w:360, h:360,
-      text:"## Try Markdown ✍️\n---\n### Headings\n# H1\n## H2\n### H3\n---\n- Bullet lists\n- Like this one\n---\n**Bold text** and *italic text*\n`inline code`\n~~strikethrough~~" });
+    const markdown = { color:"green", w:360, h:360,
+      text:"## Try Markdown ✍️\n---\n### Headings\n# H1\n## H2\n### H3\n---\n- Bullet lists\n- Like this one\n---\n**Bold text** and *italic text*\n`inline code`\n~~strikethrough~~" };
+
+    if (isTouch){
+      // On a phone, give the welcome notes room to breathe: keep Welcome + Heads
+      // up on page 1, and put each remaining tip on its own page so none overlap.
+      pageCount = 4;
+      const cx = W * 0.5 - NOTE_W / 2;          // center a 240px note horizontally
+      addNote(cx, H * 0.15, Object.assign({ page:0 }, welcome));
+      addNote(cx, H * 0.52, Object.assign({ page:0 }, headsUp));
+      addNote(cx, H * 0.30, Object.assign({ page:1 }, colorTip));
+      addNote(cx, H * 0.30, Object.assign({ page:2 }, styleTip));
+      addNote(W * 0.5 - 180, H * 0.17, Object.assign({ page:3 }, markdown));   // 360px note, clear of the top bar
+    } else {
+      addNote(W * 0.30, H * 0.26, welcome);
+      addNote(W * 0.53, H * 0.30, colorTip);
+      addNote(W * 0.40, H * 0.55, headsUp);
+      addNote(W * 0.20, H * 0.60, styleTip);
+      addNote(W * 0.72, H * 0.26, markdown);
+    }
   }
 
   /* ---------------- device-aware copy ---------------- */
