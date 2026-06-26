@@ -2,7 +2,7 @@
 <html lang="en" data-theme="dark">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
 <meta name="theme-color" content="#15161a" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -552,7 +552,15 @@
     transition: opacity .2s ease, transform .2s ease;
   }
   .toast.show{ opacity:1; transform: translateY(0); }
+  .toast .toast-msg{ flex:1 1 auto; }
+  .toast .toast-icon{
+    flex:0 0 auto; display:grid; place-items:center;
+    width:30px; height:30px; border-radius:9px;
+    background: rgba(255,255,255,.12); color:#fff;
+  }
+  .toast .toast-icon svg{ display:block; }
   .toast button{
+    flex:0 0 auto;
     background:#3a3a42; color:#fff; border:none; border-radius:8px;
     padding:6px 12px; cursor:pointer; font:inherit; font-weight:600;
   }
@@ -723,6 +731,201 @@
     .note.flit-right .note-inner, .note.flit-left .note-inner{ animation-duration: .01s; }
     .page-track{ transition-duration: .01s; }
   }
+
+  /* ============================================================
+     Mobile, app-like UI — TOUCH ONLY.
+     Everything below is scoped to `.touch` (set on <html> for phones
+     & tablets) or to elements that are *only built* on touch, so the
+     desktop experience is left exactly as it was. The goal: roomier
+     navigation, finger-sized controls, and bottom-anchored chrome that
+     a thumb can reach.
+     ============================================================ */
+
+  /* kill the grey tap-flash everywhere on touch for a native feel */
+  .touch, .touch *{ -webkit-tap-highlight-color: transparent; }
+
+  /* ---- app header: a roomy, full-width floating bar ---- */
+  .touch .bar{
+    left:10px; right:10px; width:auto; max-width:none;
+    top: calc(10px + env(safe-area-inset-top, 0px));
+    transform:none; flex-wrap:nowrap;
+    justify-content:space-between; gap:8px; padding:7px 7px 7px 14px;
+  }
+  .touch .brand{ min-width:0; flex:1 1 auto; }
+  .touch .board-name{ max-width:none; flex:1 1 auto; font-size:16px; padding:5px 8px; }
+  /* editing the board name: hand it the whole bar so it isn't cramped */
+  .touch.naming .actions{ display:none; }
+  .touch.naming .brand-logo{ display:none; }
+  .touch.naming .board-name{
+    font-size:17px; padding:10px 12px; margin:0;
+    background: var(--name-hover-bg);
+    box-shadow: inset 0 0 0 1px var(--bar-border);
+  }
+  /* the desktop action cluster collapses into a single menu button; the
+     primary "add" action becomes the FAB below. */
+  .touch .actions{ flex:0 0 auto; gap:0; }
+  .touch .actions > .btn{ display:none; }
+  .touch .actions #btnMenu{ display:grid; width:42px; height:42px; }
+
+  /* the per-note floating pill is replaced on touch by the bottom-anchored
+     note bar (#noteBar) — far bigger, finger-friendly targets. */
+  .touch .note .note-tools{ display:none !important; }
+
+  /* lift the pager / toasts clear of the home indicator */
+  .touch .pager{ bottom: calc(26px + env(safe-area-inset-bottom, 0px)); }
+  .touch .toasts{ bottom: calc(86px + env(safe-area-inset-bottom, 0px)); left:0; right:0; transform:none; padding:0 14px; }
+
+  /* a bigger, clearer snackbar on mobile, with the same translucent "glass"
+     treatment as the bar / pager / FAB (themed, not the desktop's solid dark) */
+  .touch .toast{
+    width:100%; max-width:480px; box-sizing:border-box;
+    padding:14px 14px 14px 18px; font-size:15px; border-radius:16px;
+    background: var(--bar-bg);
+    -webkit-backdrop-filter: blur(16px) saturate(1.5); backdrop-filter: blur(16px) saturate(1.5);
+    border:1px solid var(--bar-border);
+    color: var(--text);
+    box-shadow: 0 14px 36px -10px rgba(20,20,40,.45);
+  }
+  .touch .toast.has-action{ justify-content:space-between; }
+  .touch .toast .toast-icon{ background: var(--btn-icon-bg); color: var(--text); }
+  .touch .toast button{
+    padding:11px 20px; font-size:15px; font-weight:700;
+    background: var(--btn-primary-bg); color: var(--btn-primary-text);
+  }
+  .touch .toast button:hover{ background: var(--btn-primary-bg-hover); }
+
+  /* while a note is being styled, the top header + bottom chrome step out of
+     the way so the note bar and the note itself own the screen. */
+  .touch.editing-note .bar,
+  .touch.editing-note .pager,
+  .touch.editing-note #fab{ display:none !important; }
+
+  /* ---- floating action button: the primary "add a note" ----
+     same translucent "glass" treatment as the top bar and pager. */
+  #fab{
+    position:fixed; z-index:99999;
+    right: calc(18px + env(safe-area-inset-right, 0px));
+    bottom: calc(22px + env(safe-area-inset-bottom, 0px));
+    width:60px; height:60px; border-radius:20px;
+    cursor:pointer;
+    background: var(--bar-bg);
+    -webkit-backdrop-filter: blur(16px) saturate(1.5);
+    backdrop-filter: blur(16px) saturate(1.5);
+    border:1px solid var(--bar-border);
+    color: var(--btn-text);
+    display:grid; place-items:center;
+    box-shadow: 0 12px 32px -12px rgba(20,20,40,.30);
+    transition: transform .14s ease, background-color .2s ease;
+  }
+  #fab:active{ transform: scale(.9); background: var(--btn-icon-bg-hover); }
+  #fab svg{ display:block; }
+
+  /* ---- bottom-sheet menu (Theme / Help / Export / Import / Clear) ---- */
+  #menuSheet{ position:fixed; inset:0; z-index:200000; display:none; }
+  #menuSheet.open{ display:block; }
+  #menuSheet .scrim{
+    position:absolute; inset:0; background: rgba(20,20,30,.42);
+    -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
+    opacity:0; transition: opacity .22s ease;
+  }
+  #menuSheet.open .scrim{ opacity:1; }
+  #menuSheet .sheet{
+    position:absolute; left:0; right:0; bottom:0;
+    background: var(--panel-bg);
+    border-radius:22px 22px 0 0;
+    padding: 8px 10px calc(16px + env(safe-area-inset-bottom, 0px));
+    box-shadow: 0 -14px 44px rgba(0,0,0,.4);
+    transform: translateY(100%);
+    transition: transform .3s cubic-bezier(.22,1,.36,1);
+  }
+  #menuSheet.open .sheet{ transform: translateY(0); }
+  #menuSheet .grip{ width:40px; height:5px; border-radius:3px; background: var(--hint); margin:8px auto 10px; }
+  .sheet-item{
+    display:flex; align-items:center; gap:15px; width:100%;
+    border:none; background:transparent; cursor:pointer; text-align:left;
+    font:600 16px/1.2 var(--ui-font); color: var(--panel-text);
+    padding:16px 14px; border-radius:14px;
+  }
+  .sheet-item:active{ background: var(--panel-soft-bg); }
+  .sheet-item svg{ flex:0 0 auto; opacity:.85; }
+  .sheet-item.danger{ color:#ff5d5d; }
+
+  /* ---- note bar: the per-note control strip, pinned above the keyboard ---- */
+  #noteBar{
+    position:fixed; left:0; right:0; top:0; z-index:150000; display:none;
+    padding-top: env(safe-area-inset-top, 0px);
+    background: var(--bar-bg);
+    -webkit-backdrop-filter: blur(16px) saturate(1.5); backdrop-filter: blur(16px) saturate(1.5);
+    border-bottom:1px solid var(--bar-border);
+  }
+  #noteBar.open{ display:block; }
+  #noteBar .nb-row{
+    display:flex; align-items:center; gap:8px;
+    padding:9px 12px; overflow-x:auto; scrollbar-width:none;
+    -webkit-overflow-scrolling:touch;
+  }
+  #noteBar .nb-row::-webkit-scrollbar{ display:none; }
+  .nb-btn{
+    flex:0 0 auto; width:44px; height:44px; border:none; border-radius:13px;
+    background: var(--btn-icon-bg); color: var(--btn-text);
+    display:grid; place-items:center; cursor:pointer;
+    font:700 17px var(--ui-font);
+  }
+  .nb-btn:active{ background: var(--btn-icon-bg-hover); }
+  .nb-btn[hidden]{ display:none; }
+  .nb-btn.done{ width:auto; padding:0 18px; margin-left:auto; font:600 15px var(--ui-font);
+    background: var(--btn-primary-bg); color: var(--btn-primary-text); }
+  .nb-btn.danger:active{ background: rgba(255,93,93,.16); color:#ff5d5d; }
+  .nb-sep{ flex:0 0 auto; width:1px; height:26px; background: var(--bar-border); margin:0 2px; }
+  /* the color button shows the note's current color as a filled dot */
+  .nb-btn .nb-dot{
+    width:22px; height:22px; border-radius:50%;
+    border:1.5px solid rgba(0,0,0,.22); background: var(--c);
+  }
+  .nb-swatch{
+    flex:0 0 auto; width:40px; height:40px; border-radius:50%;
+    border:2px solid rgba(0,0,0,.18); background: var(--c); cursor:pointer;
+    transition: transform .12s ease;
+  }
+  .nb-swatch:active{ transform: scale(.88); }
+  .nb-swatch.active{ border-color: var(--accent); box-shadow: 0 0 0 3px var(--panel-bg), 0 0 0 5px var(--accent); }
+  /* hide the blinking text caret while a popover is open — it would otherwise
+     paint on top of the popover (the caret renders above stacking contexts). */
+  .note-body.caret-hidden{ caret-color: transparent !important; }
+
+  /* ---- popovers (color, and font+size), anchored under their nb buttons ---- */
+  #stylePop, #colorPop{
+    position:fixed; z-index:150001; display:none;
+    width: min(290px, calc(100vw - 20px));
+    background: var(--panel-bg); border:1px solid var(--bar-border);
+    border-radius:16px; padding:12px; box-shadow: 0 18px 50px rgba(0,0,0,.45);
+  }
+  #stylePop.open, #colorPop.open{ display:block; }
+  #stylePop .pop-label, #colorPop .pop-label{
+    font:700 11px var(--ui-font); letter-spacing:.6px; text-transform:uppercase;
+    color: var(--panel-muted); margin:2px 4px 7px;
+  }
+  #colorPop{ width:auto; }
+  #colorPop .pop-colors{ display:grid; grid-template-columns:repeat(3, 1fr); gap:14px; justify-items:center; padding:2px 4px 4px; }
+  #stylePop .pop-font{ display:flex; flex-direction:column; gap:3px; margin-bottom:12px; }
+  #stylePop .pop-font button{
+    text-align:left; border:none; background:transparent; cursor:pointer;
+    padding:11px 12px; border-radius:11px; font-size:16px; color: var(--panel-text);
+  }
+  #stylePop .pop-font button[data-font]{ font-family: var(--note-font); }
+  #stylePop .pop-font button.active{ background: var(--panel-soft-bg); color: var(--panel-heading); }
+  #stylePop .pop-size{ display:flex; gap:7px; }
+  #stylePop .pop-size button{
+    flex:1; border:none; cursor:pointer; padding:12px 0; border-radius:11px;
+    background: var(--panel-soft-bg); color: var(--panel-text); font:600 15px var(--ui-font);
+  }
+  #stylePop .pop-size button.active{ background: var(--btn-primary-bg); color: var(--btn-primary-text); }
+
+  /* draggable handle at the top of the bottom-sheet menu (swipe down to close) */
+  #menuSheet .sheet-handle{
+    padding:10px 0 6px; margin:-2px 0 4px; cursor:grab; touch-action:none;
+  }
+  #menuSheet .grip{ margin:0 auto; }
 </style>
 </head>
 <body>
@@ -803,8 +1006,8 @@
           <ul>
             <li id="hMarkdown" hidden><b>Markdown</b> — write Markdown (headings, <b>bold</b>, lists, links…). It renders when you click away; click back in to edit the source. <i>Online only.</i></li>
             <li id="hColor"><b>Change Color</b> — hover a note and click the color button to pick a new color.</li>
-            <li><b>Font</b> — hover a note and pick from 5 fonts: Sans Serif, Serif, Monospace, Handwritten, or Rounded. Each note can use a different font.</li>
-            <li><b>Text Size</b> — hover a note and choose Small, Medium, Large, or X-Large. Applies to all text in the note, including rendered Markdown.</li>
+            <li id="hFont"><b>Font</b> — hover a note and pick from 5 fonts: Sans Serif, Serif, Monospace, Handwritten, or Rounded. Each note can use a different font.</li>
+            <li id="hSize"><b>Text Size</b> — hover a note and choose Small, Medium, Large, or X-Large. Applies to all text in the note, including rendered Markdown.</li>
             <li id="hTheme"><b>Theme</b> — toggle light &amp; dark from the top bar; dark is the default.</li>
           </ul>
         </div>
@@ -955,6 +1158,13 @@
   let theme = document.documentElement.getAttribute("data-theme") === "light" ? "light" : "dark";
   const undoStack = [];
   let pendingImport = null;        // a parsed board waiting on the "Replace?" confirm
+
+  /* mobile app-like UI (built lazily in setupMobileUI; null on desktop) */
+  let activeNote = null;           // the note whose controls #noteBar is showing
+  let noteBarEl = null, styleBtnEl = null, colorBtnEl = null, colorDotEl = null;
+  let stylePopEl = null, colorPopEl = null;
+  let nbMoveLeft = null, nbMoveRight = null;
+  const nbSwatches = [], popFontBtns = [], popSizeBtns = [];
 
   /* ---------------- helpers ---------------- */
   const clamp = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
@@ -1359,7 +1569,7 @@
     const v = view.get(note.id);
     if (!v) return;
     v.body.contentEditable = "true";        // display is read-only; turn editing on
-    if (isTouch) v.el.classList.add("editing");
+    if (isTouch){ v.el.classList.add("editing"); openNoteBar(note); }
     v.body.focus();
     if (x != null && y != null){
       placeCaret(v.body, x, y);
@@ -1375,6 +1585,7 @@
   function deleteNote(id){
     const idx = notes.findIndex(n => n.id === id);
     if (idx < 0) return;
+    if (isTouch && activeNote && activeNote.id === id) closeNoteBar();
     undoStack.push({ note: Object.assign({}, notes[idx]), index: idx });
     notes.splice(idx, 1);
     noteById.delete(id);
@@ -1411,6 +1622,7 @@
   }
 
   function performClearAll(){
+    if (isTouch) closeNoteBar();
     notes.slice().forEach(n => {
       const v = view.get(n.id);
       if (v){
@@ -1534,6 +1746,7 @@
   // The point of no return: wipe the board and rebuild it from the imported data.
   function applyImport(data){
     if (!data) return;
+    if (isTouch) closeNoteBar();
 
     // tear down current DOM + bookkeeping
     view.forEach(v => v.el.remove());
@@ -1966,7 +2179,10 @@
     } else {
       commit();
     }
-    toast("Moved to Page " + (target + 1));
+    const pageIcon = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>';
+    toast("Moved to Page " + (target + 1),
+      { label: "View", fn: () => goToPage(target, { animate: true }) },
+      { icon: pageIcon });
   }
 
   /* ---- swipe between pages (pan the track with a finger) ---- */
@@ -2036,6 +2252,7 @@
     bgDownX = e.clientX; bgDownY = e.clientY;
     const ae = document.activeElement;
     if (ae && ae.classList && ae.classList.contains("note-body")) ae.blur();
+    if (isTouch) closeNoteBar();               // deselect: dismiss the note bar
   });
 
   function addNoteCentered(){
@@ -2152,12 +2369,18 @@
     syncTitle();
   }
   if (boardNameEl){
+    // On touch, give the name field room while editing: it grows and the menu
+    // button steps aside (see the `.naming` styles).
+    boardNameEl.addEventListener("focus", () => {
+      if (isTouch) document.documentElement.classList.add("naming");
+    });
     boardNameEl.addEventListener("input", () => {
       boardName = boardNameEl.textContent;
       syncTitle();
       save();
     });
     boardNameEl.addEventListener("blur", () => {
+      document.documentElement.classList.remove("naming");
       boardName = boardNameEl.textContent.replace(/\s+/g, " ").trim();
       boardNameEl.textContent = boardName;   // normalize; empty falls back to the placeholder
       syncTitle();
@@ -2174,10 +2397,18 @@
   }
 
   /* ---------------- toasts ---------------- */
-  function toast(msg, action){
+  function toast(msg, action, opts){
+    opts = opts || {};
     const t = document.createElement("div");
     t.className = "toast";
+    if (opts.icon){
+      const ic = document.createElement("span");
+      ic.className = "toast-icon";
+      ic.innerHTML = opts.icon;
+      t.appendChild(ic);
+    }
     const span = document.createElement("span");
+    span.className = "toast-msg";
     span.textContent = msg;
     t.appendChild(span);
     let timer;
@@ -2188,6 +2419,7 @@
       setTimeout(() => t.remove(), 400);
     };
     if (action){
+      t.classList.add("has-action");
       const b = document.createElement("button");
       b.textContent = action.label;
       b.addEventListener("click", () => { action.fn(); dismiss(); });
@@ -2195,7 +2427,8 @@
     }
     toastWrap.appendChild(t);
     requestAnimationFrame(() => t.classList.add("show"));
-    timer = setTimeout(dismiss, 5000);
+    // give actionable toasts (e.g. Undo) longer to be noticed and tapped on a phone
+    timer = setTimeout(dismiss, action ? (isTouch ? 7000 : 6000) : 5000);
   }
 
   /* ---------------- keyboard ---------------- */
@@ -2203,11 +2436,15 @@
     const ae = document.activeElement;
     const editing = !!(ae && ae.isContentEditable);
     if (e.key === "Escape"){
+      if ((stylePopEl && stylePopEl.classList.contains("open")) ||
+          (colorPopEl && colorPopEl.classList.contains("open"))){ closePops(); return; }
+      if (menuSheetEl && menuSheetEl.classList.contains("open")){ closeMenu(); return; }
       if (!importConfirmEl.hidden){ pendingImport = null; closeImportConfirm(); return; }
       if (!exportEl.hidden){ closeExport(); return; }
       if (!importEl.hidden){ closeImport(); return; }
       if (!confirmEl.hidden){ closeConfirm(); return; }
       if (!helpEl.hidden){ closeHelp(); return; }
+      if (noteBarEl && noteBarEl.classList.contains("open")){ closeNoteBar(); return; }
       if (editing) ae.blur();
       return;
     }
@@ -2277,31 +2514,421 @@
     }
   }
 
+  /* ============================================================
+     Mobile, app-like UI — TOUCH ONLY (see the matching CSS block).
+     Builds: a single kebab menu button + bottom-sheet menu, a FAB for
+     adding notes, and a top-pinned per-note control bar (#noteBar) with
+     a font/size popover. None of this is created on desktop, so the
+     desktop UI is untouched.
+     ============================================================ */
+  function svg(paths, attrs){
+    const a = attrs || 'fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"';
+    return '<svg width="22" height="22" viewBox="0 0 24 24" ' + a + '>' + paths + '</svg>';
+  }
+
+  function setupMobileUI(){
+    if (!isTouch) return;
+    buildMenuButton();
+    buildFab();
+    buildMenuSheet();
+    buildNoteBar();
+    // close an open popover (color / style) when tapping outside it
+    document.addEventListener("pointerdown", e => {
+      const styleOpen = stylePopEl && stylePopEl.classList.contains("open");
+      const colorOpen = colorPopEl && colorPopEl.classList.contains("open");
+      if (!styleOpen && !colorOpen) return;
+      const t = e.target;
+      if (stylePopEl.contains(t) || colorPopEl.contains(t)) return;
+      if ((styleBtnEl && styleBtnEl.contains(t)) || (colorBtnEl && colorBtnEl.contains(t))) return;
+      closePops();
+    });
+
+    // keep the note bar pinned to the top of the visible area as the soft
+    // keyboard opens/closes (it scrolls the page on phones)
+    if (window.visualViewport){
+      window.visualViewport.addEventListener("resize", syncNoteBarViewport);
+      window.visualViewport.addEventListener("scroll", syncNoteBarViewport);
+    }
+  }
+
+  /* ---- header: replace the action cluster with one menu button ---- */
+  function buildMenuButton(){
+    const actions = document.querySelector(".bar .actions");
+    if (!actions) return;
+    const btn = document.createElement("button");
+    btn.id = "btnMenu";
+    btn.className = "btn icon";
+    btn.title = "Menu";
+    btn.setAttribute("aria-label", "Menu");
+    btn.innerHTML = svg('<circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/>',
+      'fill="currentColor" stroke="none"');
+    btn.addEventListener("click", openMenu);
+    actions.appendChild(btn);
+  }
+
+  /* ---- FAB: the primary "add a note" ---- */
+  function buildFab(){
+    const fab = document.createElement("button");
+    fab.id = "fab";
+    fab.title = "Add a note";
+    fab.setAttribute("aria-label", "Add a note");
+    fab.innerHTML = '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>';
+    fab.addEventListener("click", addNoteForFab);
+    document.body.appendChild(fab);
+  }
+  // Add a note in the upper third so the keyboard never covers it.
+  function addNoteForFab(){
+    const W = board.clientWidth, H = board.clientHeight;
+    const x = W / 2 - NOTE_W / 2 + (Math.random() * 36 - 18);
+    const y = Math.max(MARGIN + 64, Math.round(H * 0.16));
+    focusNote(addNote(x, y));
+  }
+
+  /* ---- bottom-sheet menu (the old top-bar icon actions, finger-sized) ---- */
+  let menuSheetEl = null, menuThemeLabel = null;
+  function buildMenuSheet(){
+    menuSheetEl = document.createElement("div");
+    menuSheetEl.id = "menuSheet";
+    menuSheetEl.setAttribute("role", "dialog");
+    menuSheetEl.setAttribute("aria-modal", "true");
+    menuSheetEl.setAttribute("aria-label", "Menu");
+
+    const scrim = document.createElement("div");
+    scrim.className = "scrim";
+    scrim.addEventListener("click", closeMenu);
+
+    const sheet = document.createElement("div");
+    sheet.className = "sheet";
+    const handle = document.createElement("div");
+    handle.className = "sheet-handle";
+    const grip = document.createElement("div");
+    grip.className = "grip";
+    handle.appendChild(grip);
+    sheet.appendChild(handle);
+    enableSheetSwipe(sheet);
+
+    const addItem = (label, iconPaths, onClick, opts) => {
+      const it = document.createElement("button");
+      it.className = "sheet-item" + (opts && opts.danger ? " danger" : "");
+      it.innerHTML = svg(iconPaths) + "<span>" + label + "</span>";
+      it.addEventListener("click", onClick);
+      sheet.appendChild(it);
+      return it;
+    };
+
+    const themeItem = addItem("Theme", '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+      () => { toggleTheme(); closeMenu(); });
+    menuThemeLabel = themeItem.querySelector("span");
+
+    addItem("How it works", '<circle cx="12" cy="12" r="9"/><path d="M9.2 9.2a2.8 2.8 0 1 1 4 2.5c-.9.5-1.2 1-1.2 1.8"/><path d="M12 17h.01"/>',
+      () => { closeMenu(); openHelp(); });
+    addItem("Export board", '<path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/>',
+      () => { closeMenu(); openExport(); });
+    addItem("Import board", '<path d="M12 21V9"/><path d="m7 14 5-5 5 5"/><path d="M5 3h14"/>',
+      () => { closeMenu(); openImport(); });
+    addItem("Clear board", '<path d="M4 7h16"/><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/><path d="M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12"/>',
+      () => { closeMenu(); requestClearAll(); }, { danger: true });
+
+    menuSheetEl.appendChild(scrim);
+    menuSheetEl.appendChild(sheet);
+    document.body.appendChild(menuSheetEl);
+  }
+  function updateMenuThemeLabel(){
+    if (menuThemeLabel) menuThemeLabel.textContent = theme === "dark" ? "Light theme" : "Dark theme";
+  }
+  function openMenu(){ updateMenuThemeLabel(); menuSheetEl.classList.add("open"); }
+  function closeMenu(){ if (menuSheetEl) menuSheetEl.classList.remove("open"); }
+
+  // Drag the sheet down (from the handle or any non-button area) to dismiss it.
+  function enableSheetSwipe(sheet){
+    let sd = null;
+    const onMove = e => {
+      if (!sd) return;
+      const dy = Math.max(0, e.clientY - sd.startY);
+      sd.dy = dy;
+      sheet.style.transform = "translateY(" + dy + "px)";
+    };
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+      if (!sd) return;
+      const dy = sd.dy; sd = null;
+      sheet.style.transition = "";      // restore the spring-y CSS transition
+      sheet.style.transform = "";       // snap back (open) or animate out (close)
+      if (dy > 90) closeMenu();
+    };
+    sheet.addEventListener("pointerdown", e => {
+      if (e.button != null && e.button !== 0) return;
+      if (e.target.closest(".sheet-item")) return;   // let menu buttons take their taps
+      sd = { startY: e.clientY, dy: 0 };
+      sheet.style.transition = "none";               // follow the finger 1:1
+      window.addEventListener("pointermove", onMove);
+      window.addEventListener("pointerup", onUp);
+      window.addEventListener("pointercancel", onUp);
+    });
+  }
+
+  /* ---- note bar: per-note controls, pinned above the keyboard ---- */
+  function buildNoteBar(){
+    noteBarEl = document.createElement("div");
+    noteBarEl.id = "noteBar";
+    noteBarEl.setAttribute("role", "toolbar");
+    noteBarEl.setAttribute("aria-label", "Note controls");
+    const row = document.createElement("div");
+    row.className = "nb-row";
+
+    // popover option buttons preventDefault on pointerdown so a tap there doesn't
+    // start a text selection; the note itself is blurred while a popover is open.
+    const keepFocus = el => el.addEventListener("pointerdown", e => e.preventDefault());
+
+    // color (opens the color popover — keeps the bar compact, no scrolling)
+    colorBtnEl = document.createElement("button");
+    colorBtnEl.className = "nb-btn";
+    colorBtnEl.title = "Color";
+    colorBtnEl.setAttribute("aria-label", "Color");
+    colorDotEl = document.createElement("span");
+    colorDotEl.className = "nb-dot";
+    colorBtnEl.appendChild(colorDotEl);
+    colorBtnEl.addEventListener("click", e => { e.stopPropagation(); togglePop(colorPopEl, colorBtnEl); });
+    row.appendChild(colorBtnEl);
+
+    // font + size (opens the style popover)
+    styleBtnEl = document.createElement("button");
+    styleBtnEl.className = "nb-btn";
+    styleBtnEl.title = "Font & size";
+    styleBtnEl.setAttribute("aria-label", "Font and size");
+    styleBtnEl.textContent = "Aa";
+    styleBtnEl.addEventListener("click", e => { e.stopPropagation(); togglePop(stylePopEl, styleBtnEl); });
+    row.appendChild(styleBtnEl);
+
+    row.appendChild(makeSep());
+
+    // move to previous / next page
+    nbMoveLeft = document.createElement("button");
+    nbMoveLeft.className = "nb-btn";
+    nbMoveLeft.title = "Move to previous page";
+    nbMoveLeft.setAttribute("aria-label", "Move to previous page");
+    nbMoveLeft.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>';
+    nbMoveLeft.addEventListener("click", () => {
+      const n = activeNote; if (!n) return;
+      closeNoteBar(); moveNoteToPage(n, (n.page || 0) - 1);
+    });
+    row.appendChild(nbMoveLeft);
+
+    nbMoveRight = document.createElement("button");
+    nbMoveRight.className = "nb-btn";
+    nbMoveRight.title = "Move to next page";
+    nbMoveRight.setAttribute("aria-label", "Move to next page");
+    nbMoveRight.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>';
+    nbMoveRight.addEventListener("click", () => {
+      const n = activeNote; if (!n) return;
+      closeNoteBar(); moveNoteToPage(n, (n.page || 0) + 1);
+    });
+    row.appendChild(nbMoveRight);
+
+    row.appendChild(makeSep());
+
+    // delete
+    const del = document.createElement("button");
+    del.className = "nb-btn danger";
+    del.title = "Delete note";
+    del.setAttribute("aria-label", "Delete note");
+    del.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/><path d="M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12"/></svg>';
+    del.addEventListener("click", () => { if (activeNote) deleteNote(activeNote.id); });
+    row.appendChild(del);
+
+    // Done — pinned to the right; releases focus and dismisses the bar
+    const done = document.createElement("button");
+    done.className = "nb-btn done";
+    done.textContent = "Done";
+    done.addEventListener("click", closeNoteBar);
+    row.appendChild(done);
+
+    noteBarEl.appendChild(row);
+    document.body.appendChild(noteBarEl);
+
+    buildColorPop(keepFocus);
+    buildStylePop(keepFocus);
+  }
+  function makeSep(){ const s = document.createElement("span"); s.className = "nb-sep"; return s; }
+
+  function buildColorPop(keepFocus){
+    colorPopEl = document.createElement("div");
+    colorPopEl.id = "colorPop";
+    colorPopEl.setAttribute("role", "menu");
+    const lbl = document.createElement("div"); lbl.className = "pop-label"; lbl.textContent = "Color";
+    colorPopEl.appendChild(lbl);
+    const wrap = document.createElement("div"); wrap.className = "pop-colors";
+    PALETTE.forEach(c => {
+      const s = document.createElement("button");
+      s.className = "nb-swatch";
+      s.dataset.color = c.id;
+      s.title = c.label;
+      s.setAttribute("aria-label", c.label);
+      keepFocus(s);
+      s.addEventListener("click", e => {
+        e.stopPropagation();
+        if (activeNote){ setColor(activeNote, c.id); refreshNoteBar(); closePops(); }
+      });
+      wrap.appendChild(s);
+      nbSwatches.push(s);
+    });
+    colorPopEl.appendChild(wrap);
+    document.body.appendChild(colorPopEl);
+  }
+
+  function buildStylePop(keepFocus){
+    stylePopEl = document.createElement("div");
+    stylePopEl.id = "stylePop";
+    stylePopEl.setAttribute("role", "menu");
+
+    const fl = document.createElement("div"); fl.className = "pop-label"; fl.textContent = "Font";
+    stylePopEl.appendChild(fl);
+    const fontWrap = document.createElement("div"); fontWrap.className = "pop-font";
+    FONTS.forEach(f => {
+      const b = document.createElement("button");
+      b.dataset.font = f.id;
+      b.textContent = f.label;
+      keepFocus(b);
+      b.addEventListener("click", e => { e.stopPropagation(); if (activeNote){ setFont(activeNote, f.id); refreshNoteBar(); } });
+      fontWrap.appendChild(b);
+      popFontBtns.push(b);
+    });
+    stylePopEl.appendChild(fontWrap);
+
+    const sl = document.createElement("div"); sl.className = "pop-label"; sl.textContent = "Size";
+    stylePopEl.appendChild(sl);
+    const sizeWrap = document.createElement("div"); sizeWrap.className = "pop-size";
+    SIZES.forEach(s => {
+      const b = document.createElement("button");
+      b.dataset.size = s.id;
+      b.textContent = s.label.replace("X-Large", "XL").replace("Large", "L").replace("Medium", "M").replace("Small", "S");
+      b.title = s.label;
+      keepFocus(b);
+      b.addEventListener("click", e => { e.stopPropagation(); if (activeNote){ setSize(activeNote, s.id); refreshNoteBar(); } });
+      sizeWrap.appendChild(b);
+      popSizeBtns.push(b);
+    });
+    stylePopEl.appendChild(sizeWrap);
+
+    document.body.appendChild(stylePopEl);
+  }
+  // Hide/show the text caret on the active note while a popover is open, so it
+  // never paints on top of the popover.
+  function setCaretHidden(hidden){
+    if (!activeNote) return;
+    const v = view.get(activeNote.id);
+    if (v && v.body) v.body.classList.toggle("caret-hidden", !!hidden);
+  }
+  // Blur the note being edited (dismisses the keyboard and the OS caret/selection
+  // "teardrop" handle, which otherwise paints on top of an open popover).
+  function blurActiveNote(){
+    if (!activeNote) return;
+    const v = view.get(activeNote.id);
+    if (v && document.activeElement === v.body) v.body.blur();
+  }
+  function positionPop(popEl, anchor){
+    const r = anchor.getBoundingClientRect();
+    const popW = Math.min(290, window.innerWidth - 20);
+    const left = clamp(r.left, 10, window.innerWidth - popW - 10);
+    popEl.style.left = left + "px";
+    popEl.style.top = (r.bottom + 8) + "px";
+  }
+  function closePops(){
+    let any = false;
+    if (stylePopEl && stylePopEl.classList.contains("open")){ stylePopEl.classList.remove("open"); any = true; }
+    if (colorPopEl && colorPopEl.classList.contains("open")){ colorPopEl.classList.remove("open"); any = true; }
+    setCaretHidden(false);
+    return any;
+  }
+  function togglePop(popEl, anchor){
+    if (!popEl) return;
+    if (popEl.classList.contains("open")){ closePops(); return; }
+    closePops();              // only one popover open at a time
+    blurActiveNote();         // styling needs no keyboard; kills the teardrop handle
+    setCaretHidden(true);
+    refreshNoteBar();
+    popEl.classList.add("open");
+    syncNoteBarViewport();    // keyboard is dismissing — settle the bar at the top
+    positionPop(popEl, anchor);
+  }
+
+  // Keep the note bar glued to the top of the *visible* viewport. When the soft
+  // keyboard opens, mobile browsers scroll the page to reveal the focused note,
+  // which would otherwise push a `top:0` fixed bar above the visible area.
+  function syncNoteBarViewport(){
+    if (!noteBarEl || !noteBarEl.classList.contains("open")) return;
+    const vv = window.visualViewport;
+    const popOpen = (stylePopEl && stylePopEl.classList.contains("open")) ||
+                    (colorPopEl && colorPopEl.classList.contains("open"));
+    const off = (popOpen || !vv) ? 0 : Math.max(0, vv.offsetTop);
+    noteBarEl.style.transform = off ? ("translateY(" + off + "px)") : "";
+  }
+
+  // Show the bar for a note, reflecting its current color / font / size / page.
+  function openNoteBar(note){
+    if (!noteBarEl) return;
+    activeNote = note;
+    refreshNoteBar();
+    noteBarEl.classList.add("open");
+    document.documentElement.classList.add("editing-note");
+    syncNoteBarViewport();
+    setTimeout(syncNoteBarViewport, 300);   // re-settle after the keyboard animates in
+  }
+  function closeNoteBar(){
+    closePops();              // also restores the caret on the active note
+    if (noteBarEl){ noteBarEl.classList.remove("open"); noteBarEl.style.transform = ""; }
+    document.documentElement.classList.remove("editing-note");
+    const a = activeNote; activeNote = null;
+    if (a){
+      const v = view.get(a.id);
+      if (v && document.activeElement === v.body) v.body.blur();
+    }
+  }
+  function refreshNoteBar(){
+    if (!activeNote) return;
+    const color = activeNote.color;
+    if (colorDotEl) colorDotEl.dataset.color = color;   // the bar's color button
+    nbSwatches.forEach(s => s.classList.toggle("active", s.dataset.color === color));
+    const page = activeNote.page || 0;
+    if (nbMoveLeft)  nbMoveLeft.hidden  = page <= 0;
+    if (nbMoveRight) nbMoveRight.hidden = (page >= pageCount - 1) && (pageCount >= MAX_PAGES);
+    const font = activeNote.font || "sans";
+    const size = activeNote.fontSize || "medium";
+    popFontBtns.forEach(b => b.classList.toggle("active", b.dataset.font === font));
+    popSizeBtns.forEach(b => b.classList.toggle("active", b.dataset.size === size));
+  }
+
   /* ---------------- device-aware copy ---------------- */
   function applyDeviceCopy(){
     emptyHint.textContent = isTouch
-      ? "Double-tap anywhere, or tap + Note, to add a note"
+      ? "Tap + to add a note, or double-tap the board"
       : "Double-click anywhere, or hit + Note, to add a note";
     if (!isTouch) return;
     const set = (id, html) => { const el = document.getElementById(id); if (el) el.innerHTML = html; };
-    set("hAdd",    "<b>Add</b> — double-tap the board, or tap <b>+ Note</b>.");
-    set("hType",   "<b>Type</b> — tap a note to write; tap out when done.");
+    set("hAdd",    "<b>Add</b> — tap the <b>+</b> button (bottom-right), or double-tap the board.");
+    set("hType",   "<b>Type</b> — tap a note to write; tap <b>Done</b> or the board when finished.");
     set("hMove",   "<b>Move &amp; scroll</b> — drag a note to move it. On a long note, swipe up/down to scroll the text — no keyboard needed; drag sideways to move it.");
     set("hResize", "<b>Resize</b> — drag the corner grip. Notes keep their proportions; long text scrolls inside.");
-    set("hColor",  "<b>Change Color</b> — tap a note, then the color button to pick a new color.");
-    set("hDelete", "<b>Delete</b> — tap a note, then hit <b>×</b>.");
+    set("hColor",  "<b>Change Color</b> — tap a note, then the color button in the toolbar to pick a new color.");
+    set("hFont",   "<b>Font</b> — tap a note, then tap <b>Aa</b> in the toolbar to pick from 5 fonts.");
+    set("hSize",   "<b>Text Size</b> — tap a note, then tap <b>Aa</b> in the toolbar to choose a size.");
+    set("hTheme",  "<b>Theme</b> — switch light &amp; dark from the <b>⋯</b> menu; dark is the default.");
+    set("hDelete", "<b>Delete</b> — tap a note, then hit the trash button in the toolbar.");
     set("hRename", "<b>Rename</b> — tap the board name in the top bar and type.");
+    set("hExport", "<b>Export / Import</b> — open the <b>⋯</b> menu to back up this board to a <code>.json</code> file, or load one back in. Importing <b>replaces</b> everything on this device.");
     const pagesLi = document.getElementById("hPages");
     if (pagesLi){
       pagesLi.hidden = false;
-      pagesLi.innerHTML = "<b>Pages</b> — swipe left/right to move between pages. Use the dots at the bottom to jump or <b>+</b> to add a page; tap a note and use <b>‹ ›</b> to send it to another page.";
+      pagesLi.innerHTML = "<b>Pages</b> — swipe left/right between pages. Tap the dots at the bottom to jump, or the <b>+</b> beside them to add a page; tap a note and use <b>‹ ›</b> in the toolbar to send it to another page.";
     }
   }
 
   /* ---------------- init ---------------- */
   function init(){
     applyDeviceCopy();
-    if (isTouch) document.documentElement.classList.add("touch");
+    if (isTouch){ document.documentElement.classList.add("touch"); setupMobileUI(); }
     const had = load();
     notes.forEach(n => { maxZ = Math.max(maxZ, n.z || 1); });
     applyTheme(theme, false);   // sync the toggle's label & meta to the active theme
