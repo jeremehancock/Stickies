@@ -56,6 +56,7 @@
   :root{
     --ui-font: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, Roboto, Helvetica, Arial, sans-serif;
     --note-font: "SF Pro Rounded", ui-rounded, "Segoe UI", system-ui, var(--ui-font);
+    --note-size: 17px;
     --ink: #36352f;
 
     /* ---- themeable surfaces (light is the :root baseline) ---- */
@@ -138,6 +139,13 @@
   [data-color="blue"]  { --paper:#bfe1ff; --paper-2:#daefff; --c:#7cc0ff; }
   [data-color="orange"]{ --paper:#ffd2a3; --paper-2:#ffe4c6; --c:#ffb066; }
   [data-color="purple"]{ --paper:#e1ccff; --paper-2:#eee0ff; --c:#b794ff; }
+
+  /* ---- per-note font family ---- */
+  [data-font="sans"]   { --note-font: "SF Pro Rounded", ui-rounded, "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif; }
+  [data-font="serif"]  { --note-font: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "Times New Roman", serif; }
+  [data-font="mono"]   { --note-font: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace; }
+  [data-font="hand"]   { --note-font: "Segoe Print", "Bradley Hand", Chilanka, "TSCu_Comic", casual, cursive; }
+  [data-font="round"]  { --note-font: ui-rounded, "SF Pro Rounded", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
 
   *{ box-sizing: border-box; }
   html, body{ margin:0; height:100%; }
@@ -248,7 +256,7 @@
     white-space: pre-wrap;
     word-break: break-word;
     overflow-wrap: anywhere;
-    font: 17px/1.45 var(--note-font);
+    font: var(--note-size, 17px)/1.45 var(--note-font);
     /* A native scrollbar rasterizes jagged on a tilted note, so we hide it and
        draw our own indicator (.note-scrollbar), which rotates cleanly. */
     scrollbar-width: none;                 /* Firefox */
@@ -405,6 +413,18 @@
     transition: background .15s ease, color .15s ease;
   }
   .note-tools .del:hover{ background:#ff5d5d; color:#fff; }
+
+  /* font & size pickers inside note toolbar */
+  .note-tools select{
+    height:22px; padding:0 4px; border:1px solid rgba(0,0,0,.14);
+    border-radius:6px; background:rgba(255,255,255,.85); color:#222;
+    font-size:11px; font-family:var(--ui-font); cursor:pointer;
+    outline:none; -webkit-appearance:none; appearance:none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5' viewBox='0 0 8 5'%3E%3Cpath d='M0 0l4 5 4-5z' fill='%23666'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 4px center;
+    padding-right:14px;
+  }
+  .note-tools select:hover{ border-color:rgba(0,0,0,.3); }
 
   /* ---------------- top toolbar ---------------- */
   .bar{
@@ -788,6 +808,23 @@
     { id:"purple", label:"Purple" },
   ];
 
+  const FONTS = [
+    { id:"sans",  label:"Sans Serif" },
+    { id:"serif", label:"Serif" },
+    { id:"mono",  label:"Monospace" },
+    { id:"hand",  label:"Handwritten" },
+    { id:"round", label:"Rounded" },
+  ];
+  const FONT_IDS = new Set(FONTS.map(f => f.id));
+  const SIZES = [
+    { id:"small",  label:"Small",  px:14 },
+    { id:"medium", label:"Medium", px:17 },
+    { id:"large",  label:"Large",  px:20 },
+    { id:"xlarge", label:"X-Large", px:24 },
+  ];
+  const SIZE_IDS = new Set(SIZES.map(s => s.id));
+  const SIZE_PX = Object.fromEntries(SIZES.map(s => [s.id, s.px]));
+
   const board     = document.getElementById("board");
   const swatchBar = document.getElementById("swatches");
   const emptyHint = document.getElementById("emptyHint");
@@ -947,6 +984,25 @@
     save();
   }
 
+  function setFont(note, fontId){
+    note.font = fontId;
+    const v = view.get(note.id);
+    if (v){
+      v.el.dataset.font = fontId;
+      updateScrollbar(v.el, v.body, v.scrollbar, v.thumb);
+    }
+    save();
+  }
+  function setSize(note, sizeId){
+    note.fontSize = sizeId;
+    const v = view.get(note.id);
+    if (v){
+      v.el.style.setProperty("--note-size", SIZE_PX[sizeId] + "px");
+      updateScrollbar(v.el, v.body, v.scrollbar, v.thumb);
+    }
+    save();
+  }
+
   /* ---------------- rendering ---------------- */
   function renderNote(note){
     if (!note.w) note.w = NOTE_W;       // legacy notes saved before resizing existed
@@ -962,6 +1018,8 @@
     el.style.setProperty("--h", note.h + "px");
     el.style.setProperty("--r", note.r + "deg");
     el.style.zIndex = note.z;
+    if (note.font) el.dataset.font = note.font;
+    if (note.fontSize && SIZE_PX[note.fontSize]) el.style.setProperty("--note-size", SIZE_PX[note.fontSize] + "px");
 
     const inner = document.createElement("div");
     inner.className = "note-inner";
@@ -983,6 +1041,33 @@
     del.innerHTML = "&times;";
     del.addEventListener("click", e => { e.stopPropagation(); deleteNote(note.id); });
     tools.appendChild(del);
+
+    const sep2 = document.createElement("span"); sep2.className = "sep"; tools.appendChild(sep2);
+
+    const fontSel = document.createElement("select");
+    fontSel.title = "Font";
+    fontSel.setAttribute("aria-label", "Font");
+    FONTS.forEach(f => {
+      const o = document.createElement("option");
+      o.value = f.id; o.textContent = f.label;
+      if ((note.font || "sans") === f.id) o.selected = true;
+      fontSel.appendChild(o);
+    });
+    fontSel.addEventListener("change", e => { e.stopPropagation(); setFont(note, fontSel.value); });
+    tools.appendChild(fontSel);
+
+    const sizeSel = document.createElement("select");
+    sizeSel.title = "Text size";
+    sizeSel.setAttribute("aria-label", "Text size");
+    SIZES.forEach(s => {
+      const o = document.createElement("option");
+      o.value = s.id; o.textContent = s.label;
+      if ((note.fontSize || "medium") === s.id) o.selected = true;
+      sizeSel.appendChild(o);
+    });
+    sizeSel.addEventListener("change", e => { e.stopPropagation(); setSize(note, sizeSel.value); });
+    tools.appendChild(sizeSel);
+
     // controls must never start a drag
     tools.addEventListener("pointerdown", e => e.stopPropagation());
 
@@ -1085,6 +1170,8 @@
       w: opts.w || NOTE_W,
       h: opts.h || NOTE_H,
       z: ++maxZ,
+      font: opts.font || "sans",
+      fontSize: opts.fontSize || "medium",
     };
     notes.push(note);
     renderNote(note);
@@ -1199,6 +1286,8 @@
         w: Math.round(n.w || NOTE_W),
         h: Math.round(n.h || NOTE_H),
         z: n.z,
+        font: n.font || "sans",
+        fontSize: n.fontSize || "medium",
       })),
     };
     try {
@@ -1232,6 +1321,8 @@
       w: size(n.w, NOTE_W),
       h: size(n.h, NOTE_H),
       z: num(n.z, 1),
+      font: FONT_IDS.has(n.font) ? n.font : "sans",
+      fontSize: SIZE_IDS.has(n.fontSize) ? n.fontSize : "medium",
     };
   }
 
