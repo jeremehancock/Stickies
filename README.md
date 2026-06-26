@@ -29,6 +29,9 @@ Open `index.html` (double-click the file, or serve the folder). That's it.
   system font stacks, so they work offline on every device.
 - **Text Size** — hover a note and pick Small, Medium, Large, or X-Large. The
   size applies to all text in the note, including rendered Markdown content.
+- **Tilt** — hover a note and use the tilt button to choose how much it leans,
+  with a slider. Slide to the centre (or hit the straighten button) for **no
+  tilt**. Each note remembers its own angle.
 - **Delete** — hover and hit **×**. There's an **Undo** (also <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Z</kbd>).
 - **Rename the board** — click the board name in the top bar and type. The browser
   tab updates to match.
@@ -48,8 +51,8 @@ Phones and tablets get a dedicated, app-like layout (desktop is unchanged):
   double-tap the board.
 - **Edit** — tap a note to type. A control bar slides in across the top of the
   screen with everything for that note: **color**, **font & size** (the **Aa**
-  button), **move to another page** (**‹ ›**), **delete**, and **Done**. Tap
-  **Done** or empty space when you're finished.
+  button), **tilt**, **move to another page** (**‹ ›**), **delete**, and
+  **Done**. Tap **Done** or empty space when you're finished.
 - **Move, scroll & resize** — drag a note to move it; on a long note swipe up/down
   to scroll its text without opening the keyboard, and drag sideways to move it;
   drag the corner grip to resize.
