@@ -380,7 +380,7 @@
 
   /* per-note floating toolbar (recolor + delete) */
   .note-tools{
-    position:absolute; top:-24px; left:50%;
+    position:absolute; top:-26px; left:50%;
     display:flex; align-items:center; gap:6px;
     padding:5px 8px;
     background: rgba(255,255,255,.92);
@@ -399,12 +399,27 @@
   }
   .note.dragging .note-tools{ opacity:0 !important; pointer-events:none; }
 
-  .note-tools .dot{
+  .note-tools .color-btn{
+    width:19px; height:19px; padding:0; border-radius:50%;
+    border:1px solid rgba(0,0,0,.18); background: var(--c);
+    cursor:pointer; transition: transform .12s ease; position:relative;
+  }
+  .note-tools .color-btn:hover{ transform: scale(1.12); }
+  .color-dropdown{
+    position:absolute; bottom:calc(100% + 6px); left:50%; transform:translateX(-50%);
+    display:flex; gap:5px; padding:5px 8px;
+    background:rgba(255,255,255,.95); border:1px solid rgba(0,0,0,.1);
+    border-radius:999px; box-shadow:0 4px 12px rgba(0,0,0,.15);
+    opacity:0; pointer-events:none; transition: opacity .14s ease;
+    white-space:nowrap;
+  }
+  .color-dropdown.open{ opacity:1; pointer-events:auto; }
+  .color-dropdown .dot{
     width:15px; height:15px; padding:0; border-radius:50%;
     border:1px solid rgba(0,0,0,.14); background: var(--c);
     cursor:pointer; transition: transform .12s ease;
   }
-  .note-tools .dot:hover{ transform: scale(1.22); }
+  .color-dropdown .dot:hover{ transform: scale(1.22); }
   .note-tools .sep{ width:1px; height:14px; background: rgba(0,0,0,.12); margin:0 1px; }
   .note-tools .del{
     width:19px; height:19px; padding:0; border:none; border-radius:50%;
@@ -702,7 +717,7 @@
         <div class="tab-panel" id="hpanel-style" data-tab="style" role="tabpanel" aria-labelledby="htab-style" hidden>
           <ul>
             <li id="hMarkdown" hidden><b>Markdown</b> — write Markdown (headings, <b>bold</b>, lists, links…). It renders when you click away; click back in to edit the source. <i>Online only.</i></li>
-            <li id="hColor"><b>Change Color</b> — hover a note and tap a color dot.</li>
+            <li id="hColor"><b>Change Color</b> — hover a note and click the color button to pick a new color.</li>
             <li><b>Font</b> — hover a note and pick from 5 fonts: Sans Serif, Serif, Monospace, Handwritten, or Rounded. Each note can use a different font.</li>
             <li><b>Text Size</b> — hover a note and choose Small, Medium, Large, or X-Large. Applies to all text in the note, including rendered Markdown.</li>
             <li id="hTheme"><b>Theme</b> — toggle light &amp; dark from the top bar; dark is the default.</li>
@@ -1027,15 +1042,25 @@
 
     const tools = document.createElement("div");
     tools.className = "note-tools";
+    const colorBtn = document.createElement("button");
+    colorBtn.className = "color-btn";
+    colorBtn.title = "Change color";
+    colorBtn.setAttribute("aria-label", "Change color");
+    const colorDrop = document.createElement("div");
+    colorDrop.className = "color-dropdown";
     PALETTE.forEach(c => {
       const dot = document.createElement("button");
       dot.className = "dot";
       dot.dataset.color = c.id;
       dot.title = c.label;
       dot.setAttribute("aria-label", c.label);
-      dot.addEventListener("click", e => { e.stopPropagation(); setColor(note, c.id); });
-      tools.appendChild(dot);
+      dot.addEventListener("click", e => { e.stopPropagation(); setColor(note, c.id); colorDrop.classList.remove("open"); });
+      colorDrop.appendChild(dot);
     });
+    colorBtn.addEventListener("click", e => { e.stopPropagation(); colorDrop.classList.toggle("open"); });
+    document.addEventListener("pointerdown", e => { if (!colorDrop.contains(e.target) && e.target !== colorBtn) colorDrop.classList.remove("open"); });
+    colorBtn.appendChild(colorDrop);
+    tools.appendChild(colorBtn);
     const sep = document.createElement("span"); sep.className = "sep"; tools.appendChild(sep);
 
     const fontSel = document.createElement("select");
@@ -1833,7 +1858,7 @@
     set("hAdd",    "<b>Add</b> — double-tap the board, or tap <b>+ Note</b>.");
     set("hType",   "<b>Type</b> — tap a note to write or scroll its text; tap out when done.");
     set("hResize", "<b>Resize</b> — drag the corner grip. Notes keep their proportions; long text scrolls inside.");
-    set("hColor",  "<b>Change Color</b> — tap a note, then a color dot.");
+    set("hColor",  "<b>Change Color</b> — tap a note, then the color button to pick a new color.");
     set("hDelete", "<b>Delete</b> — tap a note, then hit <b>×</b>.");
     set("hRename", "<b>Rename</b> — tap the board name in the top bar and type.");
   }
