@@ -775,18 +775,24 @@
   .touch .pager{ bottom: calc(26px + env(safe-area-inset-bottom, 0px)); }
   .touch .toasts{ bottom: calc(86px + env(safe-area-inset-bottom, 0px)); left:0; right:0; transform:none; padding:0 14px; }
 
-  /* a bigger, clearer snackbar on mobile — the Undo action stands out */
+  /* a bigger, clearer snackbar on mobile, with the same translucent "glass"
+     treatment as the bar / pager / FAB (themed, not the desktop's solid dark) */
   .touch .toast{
     width:100%; max-width:480px; box-sizing:border-box;
-    padding:15px 15px 15px 18px; font-size:15px; border-radius:14px;
-    box-shadow: 0 16px 40px rgba(0,0,0,.5);
+    padding:14px 14px 14px 18px; font-size:15px; border-radius:16px;
+    background: var(--bar-bg);
+    -webkit-backdrop-filter: blur(16px) saturate(1.5); backdrop-filter: blur(16px) saturate(1.5);
+    border:1px solid var(--bar-border);
+    color: var(--text);
+    box-shadow: 0 14px 36px -10px rgba(20,20,40,.45);
   }
   .touch .toast.has-action{ justify-content:space-between; }
+  .touch .toast .toast-icon{ background: var(--btn-icon-bg); color: var(--text); }
   .touch .toast button{
     padding:11px 20px; font-size:15px; font-weight:700;
-    background:#ffd560; color:#26262b;
+    background: var(--btn-primary-bg); color: var(--btn-primary-text);
   }
-  .touch .toast button:hover{ background:#ffd560; }
+  .touch .toast button:hover{ background: var(--btn-primary-bg-hover); }
 
   /* while a note is being styled, the top header + bottom chrome step out of
      the way so the note bar and the note itself own the screen. */
@@ -2905,7 +2911,7 @@
     set("hType",   "<b>Type</b> — tap a note to write; tap <b>Done</b> or the board when finished.");
     set("hMove",   "<b>Move &amp; scroll</b> — drag a note to move it. On a long note, swipe up/down to scroll the text — no keyboard needed; drag sideways to move it.");
     set("hResize", "<b>Resize</b> — drag the corner grip. Notes keep their proportions; long text scrolls inside.");
-    set("hColor",  "<b>Change Color</b> — tap a note, then tap a color in the toolbar at the top.");
+    set("hColor",  "<b>Change Color</b> — tap a note, then the color button in the toolbar to pick a new color.");
     set("hFont",   "<b>Font</b> — tap a note, then tap <b>Aa</b> in the toolbar to pick from 5 fonts.");
     set("hSize",   "<b>Text Size</b> — tap a note, then tap <b>Aa</b> in the toolbar to choose a size.");
     set("hTheme",  "<b>Theme</b> — switch light &amp; dark from the <b>⋯</b> menu; dark is the default.");
@@ -2915,7 +2921,7 @@
     const pagesLi = document.getElementById("hPages");
     if (pagesLi){
       pagesLi.hidden = false;
-      pagesLi.innerHTML = "<b>Pages</b> — swipe left/right to move between pages. Use the dots at the bottom to jump or <b>+</b> to add a page; tap a note and use <b>‹ ›</b> in the toolbar to send it to another page.";
+      pagesLi.innerHTML = "<b>Pages</b> — swipe left/right between pages. Tap the dots at the bottom to jump, or the <b>+</b> beside them to add a page; tap a note and use <b>‹ ›</b> in the toolbar to send it to another page.";
     }
   }
 

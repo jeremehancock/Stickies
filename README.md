@@ -40,9 +40,22 @@ Open `index.html` (double-click the file, or serve the folder). That's it.
   board stored in this browser — there's no undo — so export first if you want a
   backup. The file is created locally; nothing is uploaded.
 
-Works with mouse and touch. **On a touch device**, drag a note anywhere to move
-it, **tap** a note to edit or scroll its text (tap empty space when you're done),
-and drag the corner grip to resize.
+### On mobile
+
+Phones and tablets get a dedicated, app-like layout (desktop is unchanged):
+
+- **Add a note** — tap the round **+** button in the bottom-right corner, or
+  double-tap the board.
+- **Edit** — tap a note to type. A control bar slides in across the top of the
+  screen with everything for that note: **color**, **font & size** (the **Aa**
+  button), **move to another page** (**‹ ›**), **delete**, and **Done**. Tap
+  **Done** or empty space when you're finished.
+- **Move, scroll & resize** — drag a note to move it; on a long note swipe up/down
+  to scroll its text without opening the keyboard, and drag sideways to move it;
+  drag the corner grip to resize.
+- **Menu** — the **⋯** button in the top bar opens **Theme**, **How it works**,
+  **Export**, **Import**, and **Clear board**.
+- **Undo a delete** — a banner slides up after a delete with an **Undo** button.
 
 ### Pages (mobile)
 
