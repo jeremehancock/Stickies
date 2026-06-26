@@ -7,7 +7,7 @@ Notes also support **Markdown** formatting when the page is online (see
 
 ## Screenshot
 
-![stickies screenshot](screenshot-with-md.png)
+![stickies screenshot](screenshot-new.png)
 
 ## Use it
 
