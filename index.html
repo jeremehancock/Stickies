@@ -979,6 +979,61 @@
     padding:10px 0 6px; margin:-2px 0 4px; cursor:grab; touch-action:none;
   }
   #menuSheet .grip{ margin:0 auto; }
+
+  /* ---- "How it works" as a native-style bottom sheet on touch ----
+     Desktop keeps the centered, popped-in card. On touch the same modal
+     becomes a bottom sheet that slides up, carries a drag grip, and can be
+     swiped (or tapped on the scrim) to dismiss — matching the menu sheet,
+     FAB and note bar so help feels like part of the app, not a web dialog. */
+  .modal-card .sheet-handle{ display:none; }       /* grip is touch-only */
+  .touch #help{
+    align-items:end;                 /* dock the sheet to the bottom edge */
+    padding:0;
+    overflow:hidden;                 /* the panel body scrolls, not the page */
+    background: rgba(20,20,30,0);     /* scrim fades in with the sheet */
+    transition: background-color .32s ease;
+  }
+  .touch #help.open{ background: rgba(20,20,30,.42); }
+  .touch #help .modal-card{
+    width:100%; max-width:560px; margin:0 auto;
+    max-height:88vh;
+    display:flex; flex-direction:column;
+    padding:0;
+    border-radius:22px 22px 0 0;
+    box-shadow: 0 -14px 44px rgba(0,0,0,.4);
+    transform: translateY(100%);
+    transition: transform .32s cubic-bezier(.22,1,.36,1);
+    animation:none;                  /* replace the desktop "pop" with the slide */
+  }
+  .touch #help.open .modal-card{ transform: translateY(0); }
+  .touch #help .sheet-handle{
+    display:block; flex:0 0 auto;
+    padding:10px 0 4px; cursor:grab; touch-action:none;
+  }
+  .touch #help .sheet-handle .grip{
+    width:40px; height:5px; border-radius:3px;
+    background: var(--hint); margin:0 auto;
+  }
+  .touch #help .modal-card h2{
+    flex:0 0 auto; margin:2px 0 14px; padding:0 20px; font-size:22px;
+  }
+  .touch #help .modal-card .tabs{ flex:0 0 auto; margin:0 16px 2px; }
+  .touch #help .modal-card .tab{ font-size:13px; padding:10px 4px; }
+  .touch #help .tab-panels{
+    flex:1 1 auto; min-height:0;
+    overflow-y:auto; -webkit-overflow-scrolling:touch;
+    overscroll-behavior:contain;
+    padding:14px 20px 2px;
+  }
+  .touch #help .modal-card ul{ line-height:1.85; }
+  .touch #help .modal-card .close{
+    flex:0 0 auto; width:auto; margin:10px 16px 0;
+    padding:15px; border-radius:14px; font-size:16px;
+  }
+  .touch #help .modal-credit{
+    flex:0 0 auto;
+    margin:12px 0 calc(8px + env(safe-area-inset-bottom, 0px));
+  }
 </style>
 </head>
 <body>
@@ -1039,6 +1094,7 @@
 
   <div class="modal" id="help" hidden>
     <div class="modal-card" role="dialog" aria-modal="true" aria-label="How it works">
+      <div class="sheet-handle" aria-hidden="true"><div class="grip"></div></div>
       <h2>How it works</h2>
       <div class="tabs" role="tablist" aria-label="Help topics">
         <button class="tab active" role="tab" id="htab-basics" data-tab="basics" aria-controls="hpanel-basics" aria-selected="true">Basics</button>
@@ -2376,8 +2432,66 @@
   document.getElementById("btnHelp").addEventListener("click", openHelp);
   document.getElementById("helpClose").addEventListener("click", closeHelp);
   helpEl.addEventListener("click", e => { if (e.target === helpEl) closeHelp(); });
-  function openHelp(){ showHelpTab("basics"); helpEl.hidden = false; }
-  function closeHelp(){ helpEl.hidden = true; }
+  const helpCard = helpEl.querySelector(".modal-card");
+  function openHelp(){
+    showHelpTab("basics");
+    helpEl.hidden = false;
+    if (isTouch){
+      // start off-screen, commit that frame, then slide up (transition needs
+      // a painted starting state — forcing layout guarantees it plays).
+      helpCard.style.transform = "";
+      helpEl.classList.remove("open");
+      void helpEl.offsetHeight;
+      helpEl.classList.add("open");
+    }
+  }
+  function closeHelp(){
+    if (isTouch){
+      helpEl.classList.remove("open");      // slide down + fade the scrim out
+      let done = false;
+      const finish = e => {
+        if (e && e.propertyName && e.propertyName !== "transform") return;
+        if (done) return;
+        done = true;
+        clearTimeout(fallback);
+        helpEl.hidden = true;
+        helpCard.removeEventListener("transitionend", finish);
+      };
+      const fallback = setTimeout(finish, 400);   // in case transitionend is missed
+      helpCard.addEventListener("transitionend", finish);
+    } else {
+      helpEl.hidden = true;
+    }
+  }
+  // drag the sheet down (from the grip / heading) to dismiss it, like the menu
+  if (isTouch){
+    const grab = helpEl.querySelector(".sheet-handle");
+    let hd = null;
+    const onMove = e => {
+      if (!hd) return;
+      const dy = Math.max(0, e.clientY - hd.startY);
+      hd.dy = dy;
+      helpCard.style.transform = "translateY(" + dy + "px)";
+    };
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+      if (!hd) return;
+      const dy = hd.dy; hd = null;
+      helpCard.style.transition = "";      // restore the spring-y transition
+      helpCard.style.transform = "";       // snap back (open) or slide out (close)
+      if (dy > 90) closeHelp();
+    };
+    grab.addEventListener("pointerdown", e => {
+      if (e.button != null && e.button !== 0) return;
+      hd = { startY: e.clientY, dy: 0 };
+      helpCard.style.transition = "none";  // follow the finger 1:1
+      window.addEventListener("pointermove", onMove);
+      window.addEventListener("pointerup", onUp);
+      window.addEventListener("pointercancel", onUp);
+    });
+  }
 
   /* help is split into tabs so the modal stays short — switch which one shows */
   const helpTablist = helpEl.querySelector(".tabs");
