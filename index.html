@@ -900,8 +900,8 @@
   }
   #noteBar.open{ display:block; }
   #noteBar .nb-row{
-    display:flex; align-items:center; gap:8px;
-    padding:9px 12px; overflow-x:auto; scrollbar-width:none;
+    display:flex; align-items:center; gap:6px;
+    padding:9px 8px; overflow-x:auto; scrollbar-width:none;
     -webkit-overflow-scrolling:touch;
   }
   #noteBar .nb-row::-webkit-scrollbar{ display:none; }
@@ -913,10 +913,11 @@
   }
   .nb-btn:active{ background: var(--btn-icon-bg-hover); }
   .nb-btn[hidden]{ display:none; }
-  .nb-btn.done{ width:auto; padding:0 18px; margin-left:auto; font:600 15px var(--ui-font);
+  /* Done: a compact icon (not a wide "Done" pill) pinned to the right, so the
+     toolbar fits even with both page-move arrows visible. */
+  .nb-btn.done{ margin-left:auto;
     background: var(--btn-primary-bg); color: var(--btn-primary-text); }
   .nb-btn.danger:active{ background: rgba(255,93,93,.16); color:#ff5d5d; }
-  .nb-sep{ flex:0 0 auto; width:1px; height:26px; background: var(--bar-border); margin:0 2px; }
   /* the color button shows the note's current color as a filled dot */
   .nb-btn .nb-dot{
     width:22px; height:22px; border-radius:50%;
@@ -2981,8 +2982,6 @@
     tiltBtnEl.addEventListener("click", e => { e.stopPropagation(); togglePop(tiltPopEl, tiltBtnEl); });
     row.appendChild(tiltBtnEl);
 
-    row.appendChild(makeSep());
-
     // move to previous / next page
     nbMoveLeft = document.createElement("button");
     nbMoveLeft.className = "nb-btn";
@@ -3006,8 +3005,6 @@
     });
     row.appendChild(nbMoveRight);
 
-    row.appendChild(makeSep());
-
     // delete
     const del = document.createElement("button");
     del.className = "nb-btn danger";
@@ -3017,10 +3014,14 @@
     del.addEventListener("click", () => { if (activeNote) deleteNote(activeNote.id); });
     row.appendChild(del);
 
-    // Done — pinned to the right; releases focus and dismisses the bar
+    // Done — a compact check pinned to the right; releases focus and dismisses
+    // the bar. An icon (not a "Done" pill) keeps the toolbar fitting on narrow
+    // phones even when both page-move arrows are showing.
     const done = document.createElement("button");
     done.className = "nb-btn done";
-    done.textContent = "Done";
+    done.title = "Done";
+    done.setAttribute("aria-label", "Done");
+    done.innerHTML = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
     done.addEventListener("click", closeNoteBar);
     row.appendChild(done);
 
@@ -3031,7 +3032,6 @@
     buildStylePop(keepFocus);
     buildTiltPop(keepFocus);
   }
-  function makeSep(){ const s = document.createElement("span"); s.className = "nb-sep"; return s; }
 
   function buildColorPop(keepFocus){
     colorPopEl = document.createElement("div");
