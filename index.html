@@ -613,10 +613,13 @@
     -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
   }
   .modal[hidden]{ display:none; }
-  /* The help modal is taller and changes height between tabs. Anchor it near the
-     top and let it grow downward, so switching tabs never shifts the tabs or the
-     "Got it" button (and tall content can scroll on short screens). */
-  #help{ align-items: start; padding: clamp(56px, 11vh, 120px) 12px 24px; overflow-y: auto; }
+  /* The help modal is taller and changes height between tabs. On desktop, anchor
+     it near the top and let it grow downward, so switching tabs never shifts the
+     tabs or the "Got it" button (and tall content can scroll on short screens).
+     On touch it's a bottom sheet (see `.modal.as-sheet`), so this must not apply
+     there — scope it to non-touch or its `align-items:start` would beat the
+     lower-specificity sheet rule and undock the panel from the bottom. */
+  html:not(.touch) #help{ align-items: start; padding: clamp(56px, 11vh, 120px) 12px 24px; overflow-y: auto; }
   .modal-card{
     width:min(460px, 92vw);
     background: var(--panel-bg); border-radius:18px; padding:24px 24px 20px;
@@ -900,8 +903,8 @@
   }
   #noteBar.open{ display:block; }
   #noteBar .nb-row{
-    display:flex; align-items:center; gap:8px;
-    padding:9px 12px; overflow-x:auto; scrollbar-width:none;
+    display:flex; align-items:center; gap:6px;
+    padding:9px 8px; overflow-x:auto; scrollbar-width:none;
     -webkit-overflow-scrolling:touch;
   }
   #noteBar .nb-row::-webkit-scrollbar{ display:none; }
@@ -913,10 +916,11 @@
   }
   .nb-btn:active{ background: var(--btn-icon-bg-hover); }
   .nb-btn[hidden]{ display:none; }
-  .nb-btn.done{ width:auto; padding:0 18px; margin-left:auto; font:600 15px var(--ui-font);
+  /* Done: a compact icon (not a wide "Done" pill) pinned to the right, so the
+     toolbar fits even with both page-move arrows visible. */
+  .nb-btn.done{ margin-left:auto;
     background: var(--btn-primary-bg); color: var(--btn-primary-text); }
   .nb-btn.danger:active{ background: rgba(255,93,93,.16); color:#ff5d5d; }
-  .nb-sep{ flex:0 0 auto; width:1px; height:26px; background: var(--bar-border); margin:0 2px; }
   /* the color button shows the note's current color as a filled dot */
   .nb-btn .nb-dot{
     width:22px; height:22px; border-radius:50%;
@@ -979,6 +983,85 @@
     padding:10px 0 6px; margin:-2px 0 4px; cursor:grab; touch-action:none;
   }
   #menuSheet .grip{ margin:0 auto; }
+
+  /* ---- modals as native-style bottom sheets on touch ----
+     Desktop keeps the centered, popped-in card. On touch every `.as-sheet`
+     modal (How it works, Export, Import, Replace, Clear) becomes a bottom
+     sheet that slides up, carries a drag grip, and can be swiped (or tapped
+     on the scrim) to dismiss — matching the menu sheet, FAB and note bar so
+     these dialogs feel like part of the app, not web pop-ups. */
+  .modal-card .sheet-handle{ display:none; }       /* grip is touch-only */
+  .sheet-body{ display:contents; }                 /* desktop: wrapper is layout-invisible */
+
+  .touch .modal.as-sheet{
+    align-items:end;                 /* dock the sheet to the bottom edge */
+    padding:0;
+    overflow:hidden;                 /* the panel body scrolls, not the page */
+    background: rgba(20,20,30,0);     /* scrim fades in with the sheet */
+    transition: background-color .32s ease;
+  }
+  .touch .modal.as-sheet.open{ background: rgba(20,20,30,.42); }
+  .touch .modal.as-sheet .modal-card{
+    width:100%; max-width:560px; margin:0 auto;
+    max-height:88vh;
+    display:flex; flex-direction:column;
+    padding:0;
+    border-radius:22px 22px 0 0;
+    box-shadow: 0 -14px 44px rgba(0,0,0,.4);
+    transform: translateY(100%);
+    transition: transform .32s cubic-bezier(.22,1,.36,1);
+    animation:none;                  /* replace the desktop "pop" with the slide */
+  }
+  .touch .modal.as-sheet.open .modal-card{ transform: translateY(0); }
+  /* Grip sits 16px below the top and 12px above the title — matching the menu
+     sheet's grip spacing so every bottom sheet reads the same (and isn't cramped
+     against the title). */
+  .touch .modal.as-sheet .sheet-handle{
+    display:block; flex:0 0 auto;
+    padding:16px 0 0; cursor:grab; touch-action:none;
+  }
+  .touch .modal.as-sheet .sheet-handle .grip{
+    width:40px; height:5px; border-radius:3px;
+    background: var(--hint); margin:0 auto;
+  }
+  .touch .modal.as-sheet .modal-card h2{
+    flex:0 0 auto; margin:12px 0 14px; padding:0 20px; font-size:22px;
+  }
+
+  /* How it works: segmented tabs + a scrollable panel above a pinned footer */
+  .touch #help .modal-card .tabs{ flex:0 0 auto; margin:0 16px 2px; }
+  .touch #help .modal-card .tab{ font-size:13px; padding:10px 4px; }
+  .touch #help .tab-panels{
+    flex:1 1 auto; min-height:0;
+    overflow-y:auto; -webkit-overflow-scrolling:touch;
+    overscroll-behavior:contain;
+    padding:14px 20px 2px;
+  }
+  .touch #help .modal-card ul{ line-height:1.85; }
+  .touch #help .modal-card .close{
+    flex:0 0 auto; width:auto; margin:10px 16px 0;
+    padding:15px; border-radius:14px; font-size:16px;
+  }
+  .touch #help .modal-credit{
+    flex:0 0 auto;
+    margin:12px 0 calc(8px + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* Export / Import / Replace / Clear: scrollable body above a pinned action row */
+  .touch .modal.as-sheet .sheet-body{
+    display:block; flex:1 1 auto; min-height:0;
+    overflow-y:auto; -webkit-overflow-scrolling:touch; overscroll-behavior:contain;
+    padding:2px 20px 4px;
+  }
+  .touch .modal.as-sheet .sheet-body > :first-child{ margin-top:0; }
+  .touch .modal.as-sheet .confirm-actions{
+    flex:0 0 auto;
+    margin:14px 16px calc(8px + env(safe-area-inset-bottom, 0px));
+    gap:12px;
+  }
+  .touch .modal.as-sheet .confirm-actions button{
+    padding:15px; border-radius:14px; font-size:16px;
+  }
 </style>
 </head>
 <body>
@@ -1037,8 +1120,9 @@
 
   <div class="toasts" id="toasts" aria-live="polite"></div>
 
-  <div class="modal" id="help" hidden>
+  <div class="modal as-sheet" id="help" hidden>
     <div class="modal-card" role="dialog" aria-modal="true" aria-label="How it works">
+      <div class="sheet-handle" aria-hidden="true"><div class="grip"></div></div>
       <h2>How it works</h2>
       <div class="tabs" role="tablist" aria-label="Help topics">
         <button class="tab active" role="tab" id="htab-basics" data-tab="basics" aria-controls="hpanel-basics" aria-selected="true">Basics</button>
@@ -1089,10 +1173,13 @@
     </div>
   </div>
 
-  <div class="modal" id="confirmClear" hidden>
+  <div class="modal as-sheet" id="confirmClear" hidden>
     <div class="modal-card confirm" role="alertdialog" aria-modal="true" aria-labelledby="confirmTitle" aria-describedby="confirmDesc">
+      <div class="sheet-handle" aria-hidden="true"><div class="grip"></div></div>
       <h2 id="confirmTitle">Clear the board?</h2>
-      <p class="confirm-text" id="confirmDesc">This removes <b>all notes</b>. It can't be undone.</p>
+      <div class="sheet-body">
+        <p class="confirm-text" id="confirmDesc">This removes <b>all notes</b>. It can't be undone.</p>
+      </div>
       <div class="confirm-actions">
         <button class="btn-cancel" id="confirmCancel">Cancel</button>
         <button class="btn-danger" id="confirmOk">Remove all</button>
@@ -1100,17 +1187,20 @@
     </div>
   </div>
 
-  <div class="modal" id="exportModal" hidden>
+  <div class="modal as-sheet" id="exportModal" hidden>
     <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="exportTitle" aria-describedby="exportDesc">
+      <div class="sheet-handle" aria-hidden="true"><div class="grip"></div></div>
       <h2 id="exportTitle">Export this board</h2>
-      <p class="confirm-text" id="exportDesc">
-        Save everything on this board — every note with its text, color and position, plus the board name — into a single file you can keep.
-      </p>
-      <ul>
-        <li>Use it as a <b>backup</b>, or to move this board to another browser or device (open it there and <b>Import</b>).</li>
-        <li>Downloads to your device as <code id="exportName">stickies-board.json</code>.</li>
-        <li>Nothing is uploaded — the file is built right here in your browser.</li>
-      </ul>
+      <div class="sheet-body">
+        <p class="confirm-text" id="exportDesc">
+          Save everything on this board — every note with its text, color and position, plus the board name — into a single file you can keep.
+        </p>
+        <ul>
+          <li>Use it as a <b>backup</b>, or to move this board to another browser or device (open it there and <b>Import</b>).</li>
+          <li>Downloads to your device as <code id="exportName">stickies-board.json</code>.</li>
+          <li>Nothing is uploaded — the file is built right here in your browser.</li>
+        </ul>
+      </div>
       <div class="confirm-actions">
         <button class="btn-cancel" id="exportCancel">Cancel</button>
         <button class="btn-go" id="exportDownload">Download .json</button>
@@ -1118,15 +1208,18 @@
     </div>
   </div>
 
-  <div class="modal" id="importModal" hidden>
+  <div class="modal as-sheet" id="importModal" hidden>
     <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="importTitle" aria-describedby="importDesc">
+      <div class="sheet-handle" aria-hidden="true"><div class="grip"></div></div>
       <h2 id="importTitle">Import a board</h2>
-      <p class="confirm-text" id="importDesc">
-        Load a board from a Stickies <code>.json</code> file you exported earlier.
-      </p>
-      <p class="warn">
-        <b>⚠ This completely replaces your current board.</b> Every note and the board name saved in this browser will be <b>overwritten and can't be recovered</b>. If you want to keep what's here, <b>Export</b> it first.
-      </p>
+      <div class="sheet-body">
+        <p class="confirm-text" id="importDesc">
+          Load a board from a Stickies <code>.json</code> file you exported earlier.
+        </p>
+        <p class="warn">
+          <b>⚠ This completely replaces your current board.</b> Every note and the board name saved in this browser will be <b>overwritten and can't be recovered</b>. If you want to keep what's here, <b>Export</b> it first.
+        </p>
+      </div>
       <div class="confirm-actions">
         <button class="btn-cancel" id="importCancel">Cancel</button>
         <button class="btn-go" id="importChoose">Choose file…</button>
@@ -1134,10 +1227,13 @@
     </div>
   </div>
 
-  <div class="modal" id="importConfirm" hidden>
+  <div class="modal as-sheet" id="importConfirm" hidden>
     <div class="modal-card confirm" role="alertdialog" aria-modal="true" aria-labelledby="importConfirmTitle" aria-describedby="importConfirmDesc">
+      <div class="sheet-handle" aria-hidden="true"><div class="grip"></div></div>
       <h2 id="importConfirmTitle">Replace this board?</h2>
-      <p class="confirm-text" id="importConfirmDesc"></p>
+      <div class="sheet-body">
+        <p class="confirm-text" id="importConfirmDesc"></p>
+      </div>
       <div class="confirm-actions">
         <button class="btn-cancel" id="importConfirmCancel">Cancel</button>
         <button class="btn-danger" id="importConfirmOk">Replace board</button>
@@ -2376,8 +2472,74 @@
   document.getElementById("btnHelp").addEventListener("click", openHelp);
   document.getElementById("helpClose").addEventListener("click", closeHelp);
   helpEl.addEventListener("click", e => { if (e.target === helpEl) closeHelp(); });
-  function openHelp(){ showHelpTab("basics"); helpEl.hidden = false; }
-  function closeHelp(){ helpEl.hidden = true; }
+  function openHelp(){ showHelpTab("basics"); sheetShow(helpEl); }
+  function closeHelp(){ sheetHide(helpEl); }
+  enableSheetDismiss(helpEl, closeHelp);
+
+  /* ---- bottom-sheet behavior shared by the help & confirm modals on touch ----
+     A `.as-sheet` modal slides up from the bottom, carries a drag grip, and is
+     swipe-/scrim-dismissable. Desktop ignores all of this and keeps the
+     centered card (these helpers just toggle `hidden` there). */
+  function sheetShow(modalEl){
+    modalEl.hidden = false;
+    if (!isTouch) return;
+    const card = modalEl.querySelector(".modal-card");
+    // start off-screen, commit that frame, then slide up — a transition needs a
+    // painted starting state, so force layout before flipping to the open state.
+    card.style.transform = "";
+    modalEl.classList.remove("open");
+    void modalEl.offsetHeight;
+    modalEl.classList.add("open");
+  }
+  function sheetHide(modalEl, after){
+    if (!isTouch){ modalEl.hidden = true; if (after) after(); return; }
+    const card = modalEl.querySelector(".modal-card");
+    modalEl.classList.remove("open");          // slide down + fade the scrim out
+    let done = false;
+    const finish = e => {
+      if (e && e.propertyName && e.propertyName !== "transform") return;
+      if (done) return;
+      done = true;
+      clearTimeout(fallback);
+      modalEl.hidden = true;
+      card.removeEventListener("transitionend", finish);
+      if (after) after();
+    };
+    const fallback = setTimeout(finish, 400);  // in case transitionend is missed
+    card.addEventListener("transitionend", finish);
+  }
+  // drag the sheet down (from the grip) to dismiss it, like the menu sheet
+  function enableSheetDismiss(modalEl, closeFn){
+    if (!isTouch) return;
+    const card = modalEl.querySelector(".modal-card");
+    const grab = modalEl.querySelector(".sheet-handle");
+    if (!card || !grab) return;
+    let hd = null;
+    const onMove = e => {
+      if (!hd) return;
+      const dy = Math.max(0, e.clientY - hd.startY);
+      hd.dy = dy;
+      card.style.transform = "translateY(" + dy + "px)";
+    };
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+      if (!hd) return;
+      const dy = hd.dy; hd = null;
+      card.style.transition = "";      // restore the spring-y transition
+      card.style.transform = "";       // snap back (open) or slide out (close)
+      if (dy > 90) closeFn();
+    };
+    grab.addEventListener("pointerdown", e => {
+      if (e.button != null && e.button !== 0) return;
+      hd = { startY: e.clientY, dy: 0 };
+      card.style.transition = "none";  // follow the finger 1:1
+      window.addEventListener("pointermove", onMove);
+      window.addEventListener("pointerup", onUp);
+      window.addEventListener("pointercancel", onUp);
+    });
+  }
 
   /* help is split into tabs so the modal stays short — switch which one shows */
   const helpTablist = helpEl.querySelector(".tabs");
@@ -2411,20 +2573,24 @@
   document.getElementById("confirmCancel").addEventListener("click", closeConfirm);
   document.getElementById("confirmOk").addEventListener("click", () => { closeConfirm(); performClearAll(); });
   confirmEl.addEventListener("click", e => { if (e.target === confirmEl) closeConfirm(); });
-  function openConfirm(){ confirmEl.hidden = false; document.getElementById("confirmCancel").focus(); }
-  function closeConfirm(){ confirmEl.hidden = true; }
+  function openConfirm(){ sheetShow(confirmEl); document.getElementById("confirmCancel").focus(); }
+  function closeConfirm(){ sheetHide(confirmEl); }
+  enableSheetDismiss(confirmEl, closeConfirm);
 
   /* ---- export / import wiring ---- */
   function openExport(){
     document.getElementById("exportName").textContent = exportFilename();
-    exportEl.hidden = false;
+    sheetShow(exportEl);
     document.getElementById("exportDownload").focus();
   }
-  function closeExport(){ exportEl.hidden = true; }
-  function openImport(){ importEl.hidden = false; document.getElementById("importCancel").focus(); }
-  function closeImport(){ importEl.hidden = true; }
-  function openImportConfirm(){ importConfirmEl.hidden = false; document.getElementById("importConfirmCancel").focus(); }
-  function closeImportConfirm(){ importConfirmEl.hidden = true; }
+  function closeExport(){ sheetHide(exportEl); }
+  function openImport(){ sheetShow(importEl); document.getElementById("importCancel").focus(); }
+  function closeImport(){ sheetHide(importEl); }
+  function openImportConfirm(){ sheetShow(importConfirmEl); document.getElementById("importConfirmCancel").focus(); }
+  function closeImportConfirm(){ sheetHide(importConfirmEl); }
+  enableSheetDismiss(exportEl, closeExport);
+  enableSheetDismiss(importEl, closeImport);
+  enableSheetDismiss(importConfirmEl, () => { pendingImport = null; closeImportConfirm(); });
 
   document.getElementById("btnExport").addEventListener("click", openExport);
   document.getElementById("btnImport").addEventListener("click", openImport);
@@ -2822,8 +2988,6 @@
     tiltBtnEl.addEventListener("click", e => { e.stopPropagation(); togglePop(tiltPopEl, tiltBtnEl); });
     row.appendChild(tiltBtnEl);
 
-    row.appendChild(makeSep());
-
     // move to previous / next page
     nbMoveLeft = document.createElement("button");
     nbMoveLeft.className = "nb-btn";
@@ -2847,8 +3011,6 @@
     });
     row.appendChild(nbMoveRight);
 
-    row.appendChild(makeSep());
-
     // delete
     const del = document.createElement("button");
     del.className = "nb-btn danger";
@@ -2858,10 +3020,14 @@
     del.addEventListener("click", () => { if (activeNote) deleteNote(activeNote.id); });
     row.appendChild(del);
 
-    // Done — pinned to the right; releases focus and dismisses the bar
+    // Done — a compact check pinned to the right; releases focus and dismisses
+    // the bar. An icon (not a "Done" pill) keeps the toolbar fitting on narrow
+    // phones even when both page-move arrows are showing.
     const done = document.createElement("button");
     done.className = "nb-btn done";
-    done.textContent = "Done";
+    done.title = "Done";
+    done.setAttribute("aria-label", "Done");
+    done.innerHTML = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
     done.addEventListener("click", closeNoteBar);
     row.appendChild(done);
 
@@ -2872,7 +3038,6 @@
     buildStylePop(keepFocus);
     buildTiltPop(keepFocus);
   }
-  function makeSep(){ const s = document.createElement("span"); s.className = "nb-sep"; return s; }
 
   function buildColorPop(keepFocus){
     colorPopEl = document.createElement("div");
