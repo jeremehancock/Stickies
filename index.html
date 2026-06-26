@@ -552,7 +552,15 @@
     transition: opacity .2s ease, transform .2s ease;
   }
   .toast.show{ opacity:1; transform: translateY(0); }
+  .toast .toast-msg{ flex:1 1 auto; }
+  .toast .toast-icon{
+    flex:0 0 auto; display:grid; place-items:center;
+    width:30px; height:30px; border-radius:9px;
+    background: rgba(255,255,255,.12); color:#fff;
+  }
+  .toast .toast-icon svg{ display:block; }
   .toast button{
+    flex:0 0 auto;
     background:#3a3a42; color:#fff; border:none; border-radius:8px;
     padding:6px 12px; cursor:pointer; font:inherit; font-weight:600;
   }
@@ -744,7 +752,15 @@
     justify-content:space-between; gap:8px; padding:7px 7px 7px 14px;
   }
   .touch .brand{ min-width:0; flex:1 1 auto; }
-  .touch .board-name{ max-width:none; flex:1 1 auto; font-size:16px; }
+  .touch .board-name{ max-width:none; flex:1 1 auto; font-size:16px; padding:5px 8px; }
+  /* editing the board name: hand it the whole bar so it isn't cramped */
+  .touch.naming .actions{ display:none; }
+  .touch.naming .brand-logo{ display:none; }
+  .touch.naming .board-name{
+    font-size:17px; padding:10px 12px; margin:0;
+    background: var(--name-hover-bg);
+    box-shadow: inset 0 0 0 1px var(--bar-border);
+  }
   /* the desktop action cluster collapses into a single menu button; the
      primary "add" action becomes the FAB below. */
   .touch .actions{ flex:0 0 auto; gap:0; }
@@ -2152,7 +2168,10 @@
     } else {
       commit();
     }
-    toast("Moved to Page " + (target + 1));
+    const pageIcon = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>';
+    toast("Moved to Page " + (target + 1),
+      { label: "View", fn: () => goToPage(target, { animate: true }) },
+      { icon: pageIcon });
   }
 
   /* ---- swipe between pages (pan the track with a finger) ---- */
@@ -2339,12 +2358,18 @@
     syncTitle();
   }
   if (boardNameEl){
+    // On touch, give the name field room while editing: it grows and the menu
+    // button steps aside (see the `.naming` styles).
+    boardNameEl.addEventListener("focus", () => {
+      if (isTouch) document.documentElement.classList.add("naming");
+    });
     boardNameEl.addEventListener("input", () => {
       boardName = boardNameEl.textContent;
       syncTitle();
       save();
     });
     boardNameEl.addEventListener("blur", () => {
+      document.documentElement.classList.remove("naming");
       boardName = boardNameEl.textContent.replace(/\s+/g, " ").trim();
       boardNameEl.textContent = boardName;   // normalize; empty falls back to the placeholder
       syncTitle();
@@ -2361,10 +2386,18 @@
   }
 
   /* ---------------- toasts ---------------- */
-  function toast(msg, action){
+  function toast(msg, action, opts){
+    opts = opts || {};
     const t = document.createElement("div");
     t.className = "toast";
+    if (opts.icon){
+      const ic = document.createElement("span");
+      ic.className = "toast-icon";
+      ic.innerHTML = opts.icon;
+      t.appendChild(ic);
+    }
     const span = document.createElement("span");
+    span.className = "toast-msg";
     span.textContent = msg;
     t.appendChild(span);
     let timer;
