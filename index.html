@@ -794,19 +794,24 @@
   .touch.editing-note .pager,
   .touch.editing-note #fab{ display:none !important; }
 
-  /* ---- floating action button: the primary "add a note" ---- */
+  /* ---- floating action button: the primary "add a note" ----
+     same translucent "glass" treatment as the top bar and pager. */
   #fab{
     position:fixed; z-index:99999;
     right: calc(18px + env(safe-area-inset-right, 0px));
     bottom: calc(22px + env(safe-area-inset-bottom, 0px));
     width:60px; height:60px; border-radius:20px;
-    border:none; cursor:pointer;
-    background: var(--btn-primary-bg); color: var(--btn-primary-text);
+    cursor:pointer;
+    background: var(--bar-bg);
+    -webkit-backdrop-filter: blur(16px) saturate(1.5);
+    backdrop-filter: blur(16px) saturate(1.5);
+    border:1px solid var(--bar-border);
+    color: var(--btn-text);
     display:grid; place-items:center;
-    box-shadow: 0 14px 30px -8px rgba(20,20,40,.55), 0 4px 10px rgba(20,20,40,.25);
+    box-shadow: 0 12px 32px -12px rgba(20,20,40,.30);
     transition: transform .14s ease, background-color .2s ease;
   }
-  #fab:active{ transform: scale(.9); }
+  #fab:active{ transform: scale(.9); background: var(--btn-icon-bg-hover); }
   #fab svg{ display:block; }
 
   /* ---- bottom-sheet menu (Theme / Help / Export / Import / Clear) ---- */
