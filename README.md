@@ -44,6 +44,21 @@ Works with mouse and touch. **On a touch device**, drag a note anywhere to move
 it, **tap** a note to edit or scroll its text (tap empty space when you're done),
 and drag the corner grip to resize.
 
+### Pages (mobile)
+
+On a phone or tablet, a board can hold several **pages** so you can spread notes
+out instead of cramming everything onto one screen:
+
+- **Switch pages** — swipe left or right, or tap the dots at the bottom.
+- **Add / remove a page** — tap **+** by the dots to add one (up to 8); an empty
+  page can be removed with the **−** that appears next to the dots.
+- **Move a note to another page** — tap the note and use the **‹ / ›** buttons in
+  its toolbar; moving past the last page makes a new one.
+
+Pages are a mobile feature. On desktop there's no page UI — the board shows **all**
+your notes at once — but the page each note belongs to is remembered, so a board
+you organize on your phone keeps its pages when you sync it back to mobile.
+
 ## Markdown
 
 Notes understand **Markdown**. While you're editing a note you see and edit the
