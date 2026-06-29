@@ -865,7 +865,7 @@
 
   /* ---- bottom-sheet menu (Theme / Help / Export / Import / Clear) ---- */
   #menuSheet{ position:fixed; inset:0; z-index:200000; display:none; }
-  #menuSheet.open{ display:block; }
+  #menuSheet.show{ display:block; }
   #menuSheet .scrim{
     position:absolute; inset:0; background: rgba(20,20,30,.42);
     -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
@@ -880,6 +880,7 @@
     box-shadow: 0 -14px 44px rgba(0,0,0,.4);
     transform: translateY(100%);
     transition: transform .3s cubic-bezier(.22,1,.36,1);
+    will-change: transform;
   }
   #menuSheet.open .sheet{ transform: translateY(0); }
   #menuSheet .grip{ width:40px; height:5px; border-radius:3px; background: var(--hint); margin:8px auto 10px; }
@@ -1010,6 +1011,7 @@
     box-shadow: 0 -14px 44px rgba(0,0,0,.4);
     transform: translateY(100%);
     transition: transform .32s cubic-bezier(.22,1,.36,1);
+    will-change: transform;          /* keep the slide on its own layer (no first-open jerk) */
     animation:none;                  /* replace the desktop "pop" with the slide */
   }
   .touch .modal.as-sheet.open .modal-card{ transform: translateY(0); }
@@ -1366,6 +1368,20 @@
     w = w || NOTE_W; h = h || w;
     note.x = clamp(note.x, MARGIN, Math.max(MARGIN, W - w - MARGIN));
     note.y = clamp(note.y, MARGIN, Math.max(MARGIN, H - h - MARGIN));
+  }
+
+  // Where a note should *render* so it stays fully on the current board — without
+  // touching its stored x/y. The saved position is the user's intent; we only
+  // clamp what's painted, so a transient viewport change (opening dev tools,
+  // rotating to landscape) never permanently moves a note. It slides back home
+  // once there's room again.
+  function clampPos(note, w, h){
+    const W = board.clientWidth, H = board.clientHeight;
+    w = w || NOTE_W; h = h || w;
+    return {
+      x: clamp(note.x, MARGIN, Math.max(MARGIN, W - w - MARGIN)),
+      y: clamp(note.y, MARGIN, Math.max(MARGIN, H - h - MARGIN)),
+    };
   }
 
   function refreshEmptyHint(){
@@ -1736,10 +1752,11 @@
     view.set(note.id, { el, inner, body, scrollbar, thumb, moveLeft, moveRight });
     updateMoveButtons();
 
-    // measure now that it's in the DOM, then keep it on-board
-    constrain(note, el.offsetWidth, el.offsetHeight);
-    el.style.setProperty("--x", note.x + "px");
-    el.style.setProperty("--y", note.y + "px");
+    // measure now that it's in the DOM, then render it clamped on-board — the
+    // note's saved x/y stays as-is (its intended spot), see clampPos.
+    const p = clampPos(note, el.offsetWidth, el.offsetHeight);
+    el.style.setProperty("--x", p.x + "px");
+    el.style.setProperty("--y", p.y + "px");
 
     refreshBar();
     refreshEmptyHint();
@@ -2006,14 +2023,21 @@
     bringToFront(note);
 
     const v = view.get(note.id);
+    // Grab from where the note is actually *painted*, not its stored x/y — these
+    // differ when the note is being clamped on-board after a viewport change, and
+    // reading the rendered value keeps the note from jumping under the pointer.
+    const rx = parseFloat(el.style.getPropertyValue("--x"));
+    const ry = parseFloat(el.style.getPropertyValue("--y"));
+    const baseX = isNaN(rx) ? note.x : rx;
+    const baseY = isNaN(ry) ? note.y : ry;
     drag = {
       note, el,
       body: v ? v.body : null,
       startX: e.clientX, startY: e.clientY,
-      grabX: e.clientX - note.x, grabY: e.clientY - note.y,
+      grabX: e.clientX - baseX, grabY: e.clientY - baseY,
       px: e.clientX, py: e.clientY,
       w: el.offsetWidth, h: el.offsetHeight,
-      lastX: note.x,
+      lastX: baseX,
       tilt: parseFloat(el.style.getPropertyValue("--r")) || note.r,
       // touch: a long (overflowing) note scrolls its text on a vertical swipe
       // (the browser pans it natively), so a vertical drag steps aside instead of
@@ -2736,16 +2760,20 @@
       notes.forEach(n => {
         const v = view.get(n.id);
         if (!v) return;
-        const ox = n.x, oy = n.y;
-        constrain(n, v.el.offsetWidth, v.el.offsetHeight);
-        if (ox !== n.x || oy !== n.y){
+        // Re-clamp only the *rendered* position to the new board size. The note's
+        // saved x/y is left untouched, so opening dev tools or rotating to
+        // landscape never permanently relocates a note — it slides back to where
+        // you left it as soon as there's room again (so it isn't saved either).
+        const px = parseFloat(v.el.style.getPropertyValue("--x"));
+        const py = parseFloat(v.el.style.getPropertyValue("--y"));
+        const p = clampPos(n, v.el.offsetWidth, v.el.offsetHeight);
+        if (p.x !== px || p.y !== py){
           v.el.classList.add("settling");
-          v.el.style.setProperty("--x", n.x + "px");
-          v.el.style.setProperty("--y", n.y + "px");
+          v.el.style.setProperty("--x", p.x + "px");
+          v.el.style.setProperty("--y", p.y + "px");
           setTimeout(() => v.el.classList.remove("settling"), 460);
         }
       });
-      save();
     }, 120);
   });
 
@@ -2913,8 +2941,17 @@
   function updateMenuThemeLabel(){
     if (menuThemeLabel) menuThemeLabel.textContent = theme === "dark" ? "Light theme" : "Dark theme";
   }
-  function openMenu(){ updateMenuThemeLabel(); menuSheetEl.classList.add("open"); }
-  function closeMenu(){ if (menuSheetEl) menuSheetEl.classList.remove("open"); }
+  function openMenu(){
+    updateMenuThemeLabel();
+    // Reveal first (display:block) with the sheet still off-screen, commit that
+    // frame, *then* flip to the open state so the slide-up actually transitions.
+    // Without the forced reflow the first open jumps instead of sliding — a CSS
+    // transition needs a painted starting state (matches sheetShow for modals).
+    menuSheetEl.classList.add("show");
+    void menuSheetEl.offsetHeight;
+    menuSheetEl.classList.add("open");
+  }
+  function closeMenu(){ if (menuSheetEl) menuSheetEl.classList.remove("open", "show"); }
 
   // Drag the sheet down (from the handle or any non-button area) to dismiss it.
   function enableSheetSwipe(sheet){
