@@ -879,7 +879,7 @@
     padding: 8px 10px calc(16px + env(safe-area-inset-bottom, 0px));
     box-shadow: 0 -14px 44px rgba(0,0,0,.4);
     transform: translateY(100%);
-    transition: transform .3s cubic-bezier(.22,1,.36,1);
+    transition: transform .45s cubic-bezier(.4,0,.2,1);  /* match the modal sheets' visible slide */
     will-change: transform;
   }
   #menuSheet.open .sheet{ transform: translateY(0); }
@@ -998,10 +998,23 @@
     align-items:end;                 /* dock the sheet to the bottom edge */
     padding:0;
     overflow:hidden;                 /* the panel body scrolls, not the page */
-    background: rgba(20,20,30,0);     /* scrim fades in with the sheet */
-    transition: background-color .32s ease;
+    /* The scrim — tint *and* blur — fades in together with the slide so opening
+       reads as one smooth motion. The base `.modal` sets blur(3px) with no
+       transition, so without this it snaps to full strength the instant the
+       sheet is shown — the whole screen jumps to blurred a frame before the
+       panel has moved. Start fully clear and fade, like the menu sheet's scrim.
+       (Beginning at blur(0) also keeps the first slide frame light, which avoids
+       a first-open hitch from building the backdrop-filter layer mid-animation.) */
+    background: rgba(20,20,30,0);
+    -webkit-backdrop-filter: blur(0px); backdrop-filter: blur(0px);
+    transition: background-color .45s ease,
+                -webkit-backdrop-filter .45s ease,
+                backdrop-filter .45s ease;
   }
-  .touch .modal.as-sheet.open{ background: rgba(20,20,30,.42); }
+  .touch .modal.as-sheet.open{
+    background: rgba(20,20,30,.42);
+    -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
+  }
   .touch .modal.as-sheet .modal-card{
     width:100%; max-width:560px; margin:0 auto;
     max-height:88vh;
@@ -1010,7 +1023,13 @@
     border-radius:22px 22px 0 0;
     box-shadow: 0 -14px 44px rgba(0,0,0,.4);
     transform: translateY(100%);
-    transition: transform .32s cubic-bezier(.22,1,.36,1);
+    /* A longer, evenly-paced slide so the panel is clearly seen travelling up
+       from the bottom edge. The previous snappy ease (cubic-bezier(.22,1,.36,1))
+       covered ~70% of the distance in the first ~65ms, so the real movement
+       happened in a frame or two — it read as popping into place (and on a tall
+       panel, landing near the top, as if it came from the top). cubic-bezier
+       (.4,0,.2,1) spreads the travel across the whole .45s instead. */
+    transition: transform .45s cubic-bezier(.4,0,.2,1);
     will-change: transform;          /* keep the slide on its own layer (no first-open jerk) */
     animation:none;                  /* replace the desktop "pop" with the slide */
   }
@@ -2529,7 +2548,7 @@
       card.removeEventListener("transitionend", finish);
       if (after) after();
     };
-    const fallback = setTimeout(finish, 400);  // in case transitionend is missed
+    const fallback = setTimeout(finish, 600);  // in case transitionend is missed (> the .45s slide)
     card.addEventListener("transitionend", finish);
   }
   // drag the sheet down (from the grip) to dismiss it, like the menu sheet
@@ -2597,7 +2616,11 @@
   document.getElementById("confirmCancel").addEventListener("click", closeConfirm);
   document.getElementById("confirmOk").addEventListener("click", () => { closeConfirm(); performClearAll(); });
   confirmEl.addEventListener("click", e => { if (e.target === confirmEl) closeConfirm(); });
-  function openConfirm(){ sheetShow(confirmEl); document.getElementById("confirmCancel").focus(); }
+  // preventScroll on every open focus: focusing a control inside the still
+  // off-screen sheet would otherwise make the browser scroll it into view,
+  // snapping the card straight to its resting spot and killing the slide-up
+  // (which is why these popped in while "How it works", with no focus, slid).
+  function openConfirm(){ sheetShow(confirmEl); document.getElementById("confirmCancel").focus({ preventScroll: true }); }
   function closeConfirm(){ sheetHide(confirmEl); }
   enableSheetDismiss(confirmEl, closeConfirm);
 
@@ -2605,12 +2628,12 @@
   function openExport(){
     document.getElementById("exportName").textContent = exportFilename();
     sheetShow(exportEl);
-    document.getElementById("exportDownload").focus();
+    document.getElementById("exportDownload").focus({ preventScroll: true });
   }
   function closeExport(){ sheetHide(exportEl); }
-  function openImport(){ sheetShow(importEl); document.getElementById("importCancel").focus(); }
+  function openImport(){ sheetShow(importEl); document.getElementById("importCancel").focus({ preventScroll: true }); }
   function closeImport(){ sheetHide(importEl); }
-  function openImportConfirm(){ sheetShow(importConfirmEl); document.getElementById("importConfirmCancel").focus(); }
+  function openImportConfirm(){ sheetShow(importConfirmEl); document.getElementById("importConfirmCancel").focus({ preventScroll: true }); }
   function closeImportConfirm(){ sheetHide(importConfirmEl); }
   enableSheetDismiss(exportEl, closeExport);
   enableSheetDismiss(importEl, closeImport);
