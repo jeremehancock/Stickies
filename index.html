@@ -2616,7 +2616,11 @@
   document.getElementById("confirmCancel").addEventListener("click", closeConfirm);
   document.getElementById("confirmOk").addEventListener("click", () => { closeConfirm(); performClearAll(); });
   confirmEl.addEventListener("click", e => { if (e.target === confirmEl) closeConfirm(); });
-  function openConfirm(){ sheetShow(confirmEl); document.getElementById("confirmCancel").focus(); }
+  // preventScroll on every open focus: focusing a control inside the still
+  // off-screen sheet would otherwise make the browser scroll it into view,
+  // snapping the card straight to its resting spot and killing the slide-up
+  // (which is why these popped in while "How it works", with no focus, slid).
+  function openConfirm(){ sheetShow(confirmEl); document.getElementById("confirmCancel").focus({ preventScroll: true }); }
   function closeConfirm(){ sheetHide(confirmEl); }
   enableSheetDismiss(confirmEl, closeConfirm);
 
@@ -2624,12 +2628,12 @@
   function openExport(){
     document.getElementById("exportName").textContent = exportFilename();
     sheetShow(exportEl);
-    document.getElementById("exportDownload").focus();
+    document.getElementById("exportDownload").focus({ preventScroll: true });
   }
   function closeExport(){ sheetHide(exportEl); }
-  function openImport(){ sheetShow(importEl); document.getElementById("importCancel").focus(); }
+  function openImport(){ sheetShow(importEl); document.getElementById("importCancel").focus({ preventScroll: true }); }
   function closeImport(){ sheetHide(importEl); }
-  function openImportConfirm(){ sheetShow(importConfirmEl); document.getElementById("importConfirmCancel").focus(); }
+  function openImportConfirm(){ sheetShow(importConfirmEl); document.getElementById("importConfirmCancel").focus({ preventScroll: true }); }
   function closeImportConfirm(){ sheetHide(importConfirmEl); }
   enableSheetDismiss(exportEl, closeExport);
   enableSheetDismiss(importEl, closeImport);
