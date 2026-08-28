@@ -1221,7 +1221,7 @@
   <div class="modal as-sheet" id="confirmClear" hidden>
     <div class="modal-card confirm" role="alertdialog" aria-modal="true" aria-labelledby="confirmTitle" aria-describedby="confirmDesc">
       <div class="sheet-handle" aria-hidden="true"><div class="grip"></div></div>
-      <h2 id="confirmTitle">Clear the board?</h2>
+      <h2 id="confirmTitle">Clear board?</h2>
       <div class="sheet-body">
         <p class="confirm-text" id="confirmDesc">This removes <b>all notes</b>. It can't be undone.</p>
       </div>
@@ -1235,7 +1235,7 @@
   <div class="modal as-sheet" id="exportModal" hidden>
     <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="exportTitle" aria-describedby="exportDesc">
       <div class="sheet-handle" aria-hidden="true"><div class="grip"></div></div>
-      <h2 id="exportTitle">Export this board</h2>
+      <h2 id="exportTitle">Export board</h2>
       <div class="sheet-body">
         <p class="confirm-text" id="exportDesc">
           Save everything on this board — every note with its text, color and position, plus the board name — into a single file you can keep.
@@ -1256,7 +1256,7 @@
   <div class="modal as-sheet" id="importModal" hidden>
     <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="importTitle" aria-describedby="importDesc">
       <div class="sheet-handle" aria-hidden="true"><div class="grip"></div></div>
-      <h2 id="importTitle">Import a board</h2>
+      <h2 id="importTitle">Import board</h2>
       <div class="sheet-body">
         <p class="confirm-text" id="importDesc">
           Load a board from a Stickies <code>.json</code> file you exported earlier.
@@ -1275,7 +1275,7 @@
   <div class="modal as-sheet" id="importConfirm" hidden>
     <div class="modal-card confirm" role="alertdialog" aria-modal="true" aria-labelledby="importConfirmTitle" aria-describedby="importConfirmDesc">
       <div class="sheet-handle" aria-hidden="true"><div class="grip"></div></div>
-      <h2 id="importConfirmTitle">Replace this board?</h2>
+      <h2 id="importConfirmTitle">Replace board?</h2>
       <div class="sheet-body">
         <p class="confirm-text" id="importConfirmDesc"></p>
       </div>
@@ -1981,7 +1981,7 @@
   }
 
   // Read a chosen file, validate it, and (if it looks like a board) stage the
-  // "Replace this board?" confirmation. Nothing is overwritten until confirmed.
+  // "Replace board?" confirmation. Nothing is overwritten until confirmed.
   function handleImportFile(file){
     if (!file) return;
     const reader = new FileReader();
