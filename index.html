@@ -883,6 +883,7 @@
     will-change: transform;
   }
   #menuSheet.open .sheet{ transform: translateY(0); }
+  #menuSheet .sheet{ touch-action:none; }   /* whole tray drags, items included */
   #menuSheet .grip{ width:40px; height:5px; border-radius:3px; background: var(--hint); margin:8px auto 10px; }
   .sheet-item{
     display:flex; align-items:center; gap:15px; width:100%;
@@ -1037,6 +1038,7 @@
     transition: transform .45s cubic-bezier(.4,0,.2,1);
     will-change: transform;          /* keep the slide on its own layer (no first-open jerk) */
     animation:none;                  /* replace the desktop "pop" with the slide */
+    touch-action:none;               /* drag-to-close owns the gesture (bar the scrollers) */
   }
   .touch .modal.as-sheet.open .modal-card{ transform: translateY(0); }
   /* Grip sits 16px below the top, and the title's first line of text lands 20px
@@ -1057,6 +1059,16 @@
   }
   .touch .modal.as-sheet .modal-card h2{
     flex:0 0 auto; margin:16px 0 12px; padding:0 20px; font-size:22px; line-height:1.2;
+    touch-action:none;             /* the title is part of the drag-to-close area */
+  }
+  /* Where the browser supports it, trim the invisible leading above the capital
+     letters so the gap IS the margin — 20px of real, measurable space on every
+     font. Without this the leading is the font's business, so the same margin
+     lands differently on each device. The rule above is the fallback. */
+  @supports (text-box: trim-start cap alphabetic){
+    .touch .modal.as-sheet .modal-card h2{
+      margin-top:20px; text-box: trim-start cap alphabetic;
+    }
   }
 
   /* How it works: segmented tabs + a scrollable panel above a pinned footer */
@@ -1067,6 +1079,7 @@
     overflow-y:auto; -webkit-overflow-scrolling:touch;
     overscroll-behavior:contain;
     padding:14px 20px 2px;
+    touch-action:pan-y;              /* this part scrolls; the rest drags */
   }
   .touch #help .modal-card ul{ line-height:1.85; }
   .touch #help .modal-card .close{
@@ -1083,6 +1096,7 @@
     display:block; flex:1 1 auto; min-height:0;
     overflow-y:auto; -webkit-overflow-scrolling:touch; overscroll-behavior:contain;
     padding:2px 20px 4px;
+    touch-action:pan-y;              /* this part scrolls; the rest drags */
   }
   .touch .modal.as-sheet .sheet-body > :first-child{ margin-top:0; }
   .touch .modal.as-sheet .confirm-actions{
@@ -2562,36 +2576,91 @@
     card.addEventListener("transitionend", finish);
   }
   // drag the sheet down (from the grip) to dismiss it, like the menu sheet
-  function enableSheetDismiss(modalEl, closeFn){
-    if (!isTouch) return;
-    const card = modalEl.querySelector(".modal-card");
-    const grab = modalEl.querySelector(".sheet-handle");
-    if (!card || !grab) return;
-    let hd = null;
-    const onMove = e => {
-      if (!hd) return;
-      const dy = Math.max(0, e.clientY - hd.startY);
-      hd.dy = dy;
-      card.style.transform = "translateY(" + dy + "px)";
+  /* Drag-to-dismiss, shared by the modal sheets and the menu tray.
+     The whole sheet is the grab area — grip, title, padding, even a button —
+     not just the thin handle strip, which was easy to miss with a thumb. A
+     press that starts on a button stays a tap until the finger has travelled
+     DRAG_SLOP; past that it becomes a drag and the button's click is swallowed,
+     so the sheet never fires an action on the way down. Content that actually
+     scrolls is left alone, so a flick inside the Export text scrolls it.
+     Release closes on distance OR on a quick flick, so a short sharp pull
+     works and you don't have to haul the sheet most of the way down. */
+  const DRAG_SLOP = 8;         // px of travel before a press becomes a drag
+  const DISMISS_PX = 70;       // a slow drag this far closes the sheet
+  const FLICK_SPEED = 0.5;     // px/ms — a fast pull closes it sooner
+  const FLICK_PX = 24;         // ...as long as it moved at least this far
+
+  function makeSheetDraggable(root, mover, closeFn){
+    if (!isTouch || !root || !mover) return;
+    let d = null;
+    // a flick inside scrollable content is a scroll, not a dismiss
+    const inScroller = t => {
+      const s = t.closest && t.closest(".sheet-body, .tab-panels");
+      return !!s && s.scrollHeight > s.clientHeight + 1;
     };
-    const onUp = () => {
+    const finish = (dy, speed) => {
+      mover.style.transition = "";     // restore the spring-y transition
+      mover.style.transform = "";      // snap back (open) or slide out (close)
+      if (dy > DISMISS_PX || (speed > FLICK_SPEED && dy > FLICK_PX)) closeFn();
+    };
+    const onMove = e => {
+      if (!d) return;
+      const dy = e.clientY - d.startY;
+      if (!d.moving){
+        if (dy <= DRAG_SLOP) return;                  // still a tap, or moving up
+        d.moving = true;
+        mover.style.transition = "none";              // follow the finger 1:1
+        if (d.onButton) root.addEventListener("click", swallow, true);
+      }
+      d.dy = Math.max(0, dy);
+      d.prevY = d.lastY; d.prevT = d.lastT;           // keep one step of history
+      d.lastY = e.clientY; d.lastT = e.timeStamp;
+      mover.style.transform = "translateY(" + d.dy + "px)";
+    };
+    const onUp = e => {
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
-      window.removeEventListener("pointercancel", onUp);
-      if (!hd) return;
-      const dy = hd.dy; hd = null;
-      card.style.transition = "";      // restore the spring-y transition
-      card.style.transform = "";       // snap back (open) or slide out (close)
-      if (dy > 90) closeFn();
+      window.removeEventListener("pointercancel", onCancel);
+      if (!d) return;
+      const moved = d.moving, dy = d.dy, onButton = d.onButton;
+      // speed over the END of the drag, not its average: a slow pull that
+      // finishes with a flick should close, and it's the last moment of the
+      // gesture that the hand thinks it's expressing
+      const y0 = d.prevY != null ? d.prevY : d.startY;
+      const t0 = d.prevT != null ? d.prevT : d.startT;
+      const endY = (e && e.clientY != null) ? e.clientY : d.lastY;
+      const endT = (e && e.timeStamp) || d.lastT;
+      const speed = Math.max(0, endY - y0) / Math.max(1, endT - t0);
+      d = null;
+      if (onButton) setTimeout(() => root.removeEventListener("click", swallow, true), 0);
+      if (moved) finish(dy, speed);
     };
-    grab.addEventListener("pointerdown", e => {
+    const onCancel = () => {                          // browser took the gesture
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onCancel);
+      if (!d) return;
+      const moved = d.moving; d = null;
+      if (moved) finish(0, 0);                        // snap back, never close
+    };
+    const swallow = e => {                            // kill the click a drag ended on
+      e.stopPropagation(); e.preventDefault();
+      root.removeEventListener("click", swallow, true);
+    };
+    root.addEventListener("pointerdown", e => {
       if (e.button != null && e.button !== 0) return;
-      hd = { startY: e.clientY, dy: 0 };
-      card.style.transition = "none";  // follow the finger 1:1
+      if (inScroller(e.target)) return;
+      d = { startY: e.clientY, startT: e.timeStamp, dy: 0, moving: false,
+            onButton: !!(e.target.closest && e.target.closest("button, a, input")) };
       window.addEventListener("pointermove", onMove);
       window.addEventListener("pointerup", onUp);
-      window.addEventListener("pointercancel", onUp);
+      window.addEventListener("pointercancel", onCancel);
     });
+  }
+
+  function enableSheetDismiss(modalEl, closeFn){
+    const card = modalEl.querySelector(".modal-card");
+    makeSheetDraggable(card, card, closeFn);
   }
 
   /* help is split into tabs so the modal stays short — switch which one shows */
@@ -2986,35 +3055,9 @@
   }
   function closeMenu(){ if (menuSheetEl) menuSheetEl.classList.remove("open", "show"); }
 
-  // Drag the sheet down (from the handle or any non-button area) to dismiss it.
-  function enableSheetSwipe(sheet){
-    let sd = null;
-    const onMove = e => {
-      if (!sd) return;
-      const dy = Math.max(0, e.clientY - sd.startY);
-      sd.dy = dy;
-      sheet.style.transform = "translateY(" + dy + "px)";
-    };
-    const onUp = () => {
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", onUp);
-      window.removeEventListener("pointercancel", onUp);
-      if (!sd) return;
-      const dy = sd.dy; sd = null;
-      sheet.style.transition = "";      // restore the spring-y CSS transition
-      sheet.style.transform = "";       // snap back (open) or animate out (close)
-      if (dy > 90) closeMenu();
-    };
-    sheet.addEventListener("pointerdown", e => {
-      if (e.button != null && e.button !== 0) return;
-      if (e.target.closest(".sheet-item")) return;   // let menu buttons take their taps
-      sd = { startY: e.clientY, dy: 0 };
-      sheet.style.transition = "none";               // follow the finger 1:1
-      window.addEventListener("pointermove", onMove);
-      window.addEventListener("pointerup", onUp);
-      window.addEventListener("pointercancel", onUp);
-    });
-  }
+  // The menu tray drags like the modal sheets — including from its own items,
+  // which used to be dead to the gesture even though they cover most of it.
+  function enableSheetSwipe(sheet){ makeSheetDraggable(sheet, sheet, closeMenu); }
 
   /* ---- note bar: per-note controls, pinned above the keyboard ---- */
   function buildNoteBar(){
