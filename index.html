@@ -979,9 +979,14 @@
   #tiltPop .tilt-range::-moz-range-track{ background: var(--panel-soft-bg); height:5px; }
   #tiltPop .tilt-range::-moz-range-thumb{ background: var(--btn-primary-bg); width:20px; height:20px; }
 
-  /* draggable handle at the top of the bottom-sheet menu (swipe down to close) */
+  /* Draggable handle at the top of the bottom-sheet menu (swipe down to close).
+     Grip sits 16px below the sheet's top edge (8px sheet padding - 2px margin
+     + 10px padding), then only 1px of space before the first item: the item's
+     own 16px tap padding supplies the rest, so the grip-to-text gap matches the
+     titled sheets exactly. Losing the handle's lower padding costs no drag area
+     — the whole sheet is swipe-to-dismiss, not just the handle. */
   #menuSheet .sheet-handle{
-    padding:10px 0 6px; margin:-2px 0 4px; cursor:grab; touch-action:none;
+    padding:10px 0 1px; margin:-2px 0 0; cursor:grab; touch-action:none;
   }
   #menuSheet .grip{ margin:0 auto; }
 
