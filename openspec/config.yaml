@@ -1,0 +1,47 @@
+schema: spec-driven
+
+# Project context — shown to AI when creating artifacts.
+context: |
+  Stickies — a sticky-note whiteboard that lives entirely in one file.
+
+  Tech stack:
+    - Vanilla HTML, CSS and JavaScript, all inside index.html (~3400 lines).
+    - No build step, no bundler, no package.json, no framework, no dependencies
+      to install. The app runs by opening index.html in a browser.
+    - The only external code is two optional CDN libraries used for Markdown
+      rendering: marked (parser) and DOMPurify (sanitizer). They are pinned to
+      an exact version with Subresource Integrity hashes. They are optional by
+      design: offline, they fail to load and notes fall back to plain text.
+      Any change must keep that offline fallback working.
+
+  Storage:
+    - Notes, board name and theme live in the browser's localStorage on that
+      one device and browser. Nothing is uploaded or synced.
+    - Boards can be exported to / imported from a JSON file. Import overwrites
+      the stored board with no undo.
+
+  Product shape:
+    - Desktop and mobile are deliberately different layouts from the same file.
+      Desktop shows every note at once. Mobile gets an app-like layout with
+      swipeable pages (max 8), bottom sheets, and a per-note control bar.
+    - A note's page is stored even on desktop, so a board organized on a phone
+      keeps its pages.
+    - Per-note settings: color, font (5 system stacks), text size, tilt angle.
+    - Dark mode is the default; the theme choice is remembered.
+
+  Conventions:
+    - Keep it dependency-free and buildless. Prefer adding to index.html over
+      introducing tooling.
+    - Fonts use system font stacks so they work offline everywhere.
+    - Commit subjects read as plain sentences describing the effect, e.g.
+      "Shorten the sheet titles so they clear the grip". Not conventional
+      commits.
+    - Work happens on claude/<topic> branches merged into main.
+    - There is no test suite. Changes are verified by opening the app in a
+      browser, on both a desktop width and a phone width.
+
+# Per-artifact rules (optional)
+# Example:
+#   rules:
+#     proposal:
+#       - Keep proposals under 500 words
