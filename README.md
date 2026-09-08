@@ -16,8 +16,9 @@ Open `index.html` (double-click the file, or serve the folder). That's it.
 - **Add** — double-click anywhere on the board, or hit **+ Note**.
 - **Type** — click a note and start writing.
 - **Format with Markdown** — write Markdown and it renders when you click away
-  (click back in to edit the raw text). **Only when the page is online / hosted** —
-  offline, notes stay as plain text. See [Markdown](#markdown) below.
+  (click back in to edit the raw text). Task lists are live: tick `- [ ]` boxes
+  right on the note. **Only when the page is online / hosted** — offline, notes
+  stay as plain text. See [Markdown](#markdown) below.
 - **Move** — drag it. The note lifts, tilts toward the direction you fling it, and
   springs back to rest when you let go.
 - **Resize** — drag the corner grip. Notes stay in tidy sticky-note proportions
@@ -81,6 +82,19 @@ Notes understand **Markdown**. While you're editing a note you see and edit the
 raw text; click (or tap) away and it renders — headings, **bold**, *italic*,
 lists, task lists, `code`, blockquotes, links, tables and more. Your notes are
 always *stored* as plain Markdown text, so the formatting is just a display layer.
+
+**Checklists are live.** Write a task list and you can tick the boxes straight on
+the note — click or tap one and it toggles without opening the editor:
+
+```markdown
+- [x] milk
+- [ ] coffee beans
+```
+
+Ticking a box rewrites that one `[ ]` into `[x]` in the note's own Markdown, so
+the change is saved, survives a reload, travels with an export, and is exactly
+what you see if you open the note to edit it. Dragging a note by a checkbox still
+just moves the note.
 
 > ⚠️ **Markdown rendering only works when the page is online or hosted.**
 >

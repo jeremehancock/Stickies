@@ -293,8 +293,22 @@
   .note-body.markdown li{ margin:.15em 0; }
   .note-body.markdown li > ul,
   .note-body.markdown li > ol{ margin:.1em 0; }
-  .note-body.markdown li.task-list-item{ list-style:none; margin-left:-1.2em; }
-  .note-body.markdown input[type="checkbox"]{ margin:0 .45em 0 0; vertical-align:middle; }
+  .note-body.markdown li.task-list-item{ list-style:none; }
+  /* an all-task list sits flush with the note's text, so the boxes line up down
+     the left edge where the bullets would have been... */
+  .note-body.markdown ul.task-list,
+  .note-body.markdown ol.task-list{ padding-left:.2em; }
+  /* ...but a nested one keeps a normal indent, so the nesting still reads */
+  .note-body.markdown li ul.task-list,
+  .note-body.markdown li ol.task-list{ padding-left:1.4em; }
+  /* task-list checkboxes are live controls — you tick them straight on the note.
+     accent-color paints a checked box in the note's ink instead of browser blue,
+     which sits right on every paper color in both themes. */
+  .note-body.markdown input[type="checkbox"]{
+    margin:0 .45em 0 0; vertical-align:middle;
+    cursor:pointer;
+    accent-color: var(--ink);
+  }
   .note-body.markdown a{ color:#0b62c4; text-decoration:underline; cursor:pointer; }
   .note-body.markdown strong{ font-weight:700; }
   .note-body.markdown em{ font-style:italic; }
@@ -375,6 +389,11 @@
   .touch .note.has-overflow .note-body{
     touch-action: pan-y;
     -webkit-overflow-scrolling: touch;
+  }
+  /* a finger-sized checkbox: the browser default is far too small to tap
+     reliably, and a miss opens the editor instead of ticking the item */
+  .touch .note-body.markdown input[type="checkbox"]{
+    width:18px; height:18px;
   }
   /* edit mode — the tapped note becomes editable and scrolls natively */
   .touch .note.editing .note-body{
@@ -1186,7 +1205,7 @@
         </div>
         <div class="tab-panel" id="hpanel-style" data-tab="style" role="tabpanel" aria-labelledby="htab-style" hidden>
           <ul>
-            <li id="hMarkdown" hidden><b>Markdown</b> — write Markdown (headings, <b>bold</b>, lists, links…). It renders when you click away; click back in to edit the source. <i>Online only.</i></li>
+            <li id="hMarkdown" hidden><b>Markdown</b> — write Markdown (headings, <b>bold</b>, lists, links…). It renders when you click away; click back in to edit the source. Task lists are live — tick <code>- [ ]</code> boxes right on the note. <i>Online only.</i></li>
             <li id="hColor"><b>Change Color</b> — hover a note and click the color button to pick a new color.</li>
             <li id="hFont"><b>Font</b> — hover a note and pick from 5 fonts: Sans Serif, Serif, Monospace, Handwritten, or Rounded. Each note can use a different font.</li>
             <li id="hSize"><b>Text Size</b> — hover a note and choose Small, Medium, Large, or X-Large. Applies to all text in the note, including rendered Markdown.</li>
@@ -1458,6 +1477,94 @@
       return window.DOMPurify.sanitize(dirty);   // strips scripts/handlers — matters for imported boards
     } catch(_){ return null; }
   }
+  /* ---- task lists ----
+     A rendered checkbox has to be traced back to the exact `[ ]` in the note's
+     raw Markdown, because that raw text is what we store, export and edit — the
+     rendered HTML is thrown away and rebuilt on every render. We do it by
+     position: the nth checkbox in the rendered note comes from the nth task
+     marker in the source, since `marked` emits them in source order (a parent
+     item's box before the nested list rendered inside it, just as the parent
+     line precedes the nested lines). */
+
+  // A GFM task marker at the start of a list item: optional blockquote markers,
+  // indentation, a bullet (-, *, +) or ordered (1. / 1)) marker, then [ ] / [x] /
+  // [X] and a space. The trailing space is required because that is exactly what
+  // `marked` requires (/^\[[ xX]\] /) — a lone "- [ ]" with nothing after it is
+  // rendered as literal text, so counting it here would shift every later marker
+  // out of step with the rendered boxes.
+  const TASK_MARKER_RE = /^([ \t]*(?:>[ \t]*)*(?:[-*+]|\d{1,9}[.)])[ \t]+\[)([ xX])(?=\] )/;
+  // The opening or closing line of a fenced code block.
+  const CODE_FENCE_RE = /^[ \t]*(`{3,}|~{3,})/;
+
+  // Every task marker in a Markdown string, in source order, as
+  // { index, checked } — `index` being the offset of the single character
+  // between the brackets. Lines inside a fenced code block are skipped: `- [ ] x`
+  // in a fence renders as literal text rather than a checkbox, so counting it
+  // would put every later marker out of step with the rendered boxes.
+  function findTaskMarkers(text){
+    const src = text == null ? "" : String(text);
+    const out = [];
+    let pos = 0;            // offset of the current line within src
+    let fenceChar = "";     // "`" or "~" while inside a fenced code block
+    let fenceLen = 0;
+    src.split("\n").forEach(line => {
+      const fence = line.match(CODE_FENCE_RE);
+      if (fence){
+        const ch = fence[1][0], len = fence[1].length;
+        if (!fenceChar){ fenceChar = ch; fenceLen = len; }                     // opens a fence
+        else if (ch === fenceChar && len >= fenceLen){ fenceChar = ""; fenceLen = 0; }   // closes it
+      } else if (!fenceChar){
+        const m = line.match(TASK_MARKER_RE);
+        if (m) out.push({ index: pos + m[1].length, checked: m[2] !== " " });
+      }
+      pos += line.length + 1;   // + the "\n" that split() removed
+    });
+    return out;
+  }
+
+  // `text` with only the nth task marker set to `checked`, every other character
+  // untouched. Returns the text unchanged when there is no nth marker — rewriting
+  // the wrong line would be far worse than doing nothing.
+  function setTaskMarker(text, n, checked){
+    const src = text == null ? "" : String(text);
+    const mark = findTaskMarkers(src)[n];
+    if (!mark) return src;
+    return src.slice(0, mark.index) + (checked ? "x" : " ") + src.slice(mark.index + 1);
+  }
+
+  // Tick / untick a note's nth task item: rewrite that one marker in the stored
+  // Markdown, then flip the rendered box to match. Deliberately no re-render —
+  // rebuilding the body's HTML would reset the note's scroll position (ticking
+  // something halfway down a long list would jump it back to the top) and drop
+  // keyboard focus.
+  //
+  // The guard matters: the scan above and marked's parser can disagree on exotic
+  // Markdown — a task line indented far enough to become a code block inside a
+  // list item renders as literal text, but reads as a marker here — and a
+  // disagreement would rewrite the wrong line. When the counts don't line up we
+  // repaint from the source and change nothing, rather than corrupt the note.
+  // `forced` is the state to apply (the keyboard path, where the browser has
+  // already toggled the box); leave it out to flip whatever the source says.
+  function toggleTask(note, body, index, forced){
+    const boxes = body.querySelectorAll('input[type="checkbox"]');
+    const marks = findTaskMarkers(note.text);
+    if (marks.length !== boxes.length || !marks[index]){
+      showRendered(body, note);   // the display drifted from the source; put it back
+      toast("Couldn't update that checkbox — open the note to edit it.");
+      return;
+    }
+    const checked = (forced == null) ? !marks[index].checked : !!forced;
+    note.text = setTaskMarker(note.text, index, checked);
+    boxes[index].checked = checked;
+    save();
+  }
+
+  // Where a checkbox sits among the note's rendered boxes — that ordinal is what
+  // maps it back to a marker in the raw text. -1 when it isn't one of them.
+  function taskIndexOf(body, box){
+    return Array.prototype.indexOf.call(body.querySelectorAll('input[type="checkbox"]'), box);
+  }
+
   // Put a note's raw Markdown into its body for editing.
   function showRaw(body, note){
     body.classList.remove("markdown");
@@ -1470,6 +1577,26 @@
     if (html === null){ showRaw(body, note); return; }
     body.classList.add("markdown");
     body.innerHTML = html;
+    // Two fixes to what `marked` hands us, done here on the DOM rather than by
+    // overriding its renderer, so a version bump can't silently change the markup
+    // out from under us:
+    //   1. it emits task-list checkboxes disabled — enable them so they are real
+    //      controls, clickable and keyboard-operable (the toggling itself lives in
+    //      onPointerUp and the body's change listener);
+    //   2. it emits a plain <li>, with no class — tag it so the .task-list-item
+    //      rule can drop the list bullet that would otherwise sit beside the box.
+    body.querySelectorAll('input[type="checkbox"]').forEach(box => {
+      box.disabled = false;
+      const li = box.closest("li");
+      if (li) li.classList.add("task-list-item");
+    });
+    // Tag a list as a task list only when every one of its items is a task, so a
+    // list that mixes ticked items with plain ones keeps its normal bullet indent.
+    body.querySelectorAll("ul, ol").forEach(list => {
+      const items = Array.prototype.filter.call(list.children, c => c.tagName === "LI");
+      if (items.length && items.every(li => li.classList.contains("task-list-item")))
+        list.classList.add("task-list");
+    });
     setEmptyClass(body);
   }
   // Paint a note's body for its current state: raw while focused, rendered otherwise.
@@ -1723,7 +1850,15 @@
     body.setAttribute("data-placeholder", "Jot an idea…");
     const refreshBar = () => updateScrollbar(el, body, scrollbar, thumb);
     paintBody(body, note);   // rendered Markdown when available, raw text otherwise
-    body.addEventListener("input", () => { note.text = getText(body); setEmptyClass(body); refreshBar(); save(); });
+    // Only the user typing into the body itself changes the note's text. Form
+    // controls rendered inside the body (a Markdown task-list checkbox) also fire
+    // `input`, and it bubbles up to here — without this guard, ticking a box would
+    // replace the note's Markdown source with the plain text of its rendered
+    // output, silently losing every `#`, link URL and code fence in the note.
+    body.addEventListener("input", e => {
+      if (e.target !== body) return;
+      note.text = getText(body); setEmptyClass(body); refreshBar(); save();
+    });
     body.addEventListener("scroll", refreshBar, { passive: true });
     // entering edit mode: mark the note editing (flattens compositing so the caret
     // stays visible), swap rendered Markdown back to its editable raw source, then
@@ -1760,6 +1895,23 @@
     body.addEventListener("click", e => {
       const a = e.target.closest && e.target.closest("a[href]");
       if (a) e.preventDefault();
+      // The browser's own checkbox toggle is cancelled too, and onPointerUp does
+      // the ticking instead. Reason: the note travels under the pointer while you
+      // drag it, so a press that starts on a checkbox and becomes a drag still
+      // ends with that box under the pointer — the browser would fire a click and
+      // tick the item you only meant to move. onPointerUp is the one place that
+      // knows a tap from a drag from a scroll. Cancelling the click also cancels
+      // the input/change events it would have fired.
+      if (e.target.closest && e.target.closest('input[type="checkbox"]')) e.preventDefault();
+    });
+    // Keyboard path: an enabled checkbox is tabbable and Space toggles it, firing
+    // `change`. (Mouse clicks never reach here — theirs is cancelled above.) The
+    // browser has already flipped the box, so bring the Markdown source in line.
+    body.addEventListener("change", e => {
+      const box = e.target;
+      if (!box || box.type !== "checkbox" || !body.contains(box)) return;
+      const i = taskIndexOf(body, box);
+      if (i >= 0) toggleTask(note, body, i, box.checked);
     });
     // Rendered links/images are natively draggable, which would hijack a press that
     // means to drag the note. Suppress it so the whole note stays a drag surface.
@@ -2062,6 +2214,9 @@
     // instead of entering edit mode. We still set up the drag below, so dragging
     // from a link moves the note — the link only opens when the pointer doesn't move.
     const link = e.target.closest && e.target.closest(".note-body a[href]");
+    // Same deal for a press on a rendered task-list checkbox: it ticks the item on
+    // pointer-up instead of entering edit mode, and only if the press stays put.
+    const box = e.target.closest && e.target.closest('.note-body input[type="checkbox"]');
 
     bringToFront(note);
 
@@ -2091,6 +2246,9 @@
       moving: false,
       raf: 0,
       linkHref: link ? link.href : null,
+      // which checkbox, by position among the note's boxes — that ordinal is what
+      // maps back to a marker in the raw Markdown (see toggleTask)
+      taskIndex: (box && v) ? taskIndexOf(v.body, box) : -1,
     };
 
     window.addEventListener("pointermove", onPointerMove);
@@ -2164,6 +2322,10 @@
     } else if (e.type === "pointercancel" || scrolled || d.steppedAside){
       // a vertical swipe (handed to native scroll) — never a tap, so don't edit.
       // nothing to do beyond persisting the bring-to-front below
+    } else if (d.taskIndex >= 0 && d.body){
+      // a tap/click on a rendered checkbox -> tick that item, don't enter edit mode
+      // (and on touch, don't raise the keyboard or the note's control bar)
+      toggleTask(d.note, d.body, d.taskIndex);
     } else if (d.linkHref){
       // a tap/click on a rendered link -> open it in a new tab, don't enter edit mode
       window.open(d.linkHref, "_blank", "noopener,noreferrer");
@@ -2897,8 +3059,11 @@
     const styleTip = { color:"purple", font:"hand", fontSize:"large",
       text:`Make it yours ✍️\n\n${hov} a note to change its font & text size.\n\nThis one is Handwritten + Large!` };
     // Markdown showcase — renders when online; shows the raw syntax offline.
+    // The checklist goes first: it's the one part you can actually interact with,
+    // and this note is taller than it looks, so anything further down starts out
+    // scrolled below the fold.
     const markdown = { color:"green", w:360, h:360,
-      text:"## Try Markdown ✍️\n---\n### Headings\n# H1\n## H2\n### H3\n---\n- Bullet lists\n- Like this one\n---\n**Bold text** and *italic text*\n`inline code`\n~~strikethrough~~" };
+      text:`## Try Markdown ✍️\n---\n### Checklists\n- [x] ${tap} a box to tick it\n- [ ] No need to open the note\n---\n### Headings\n# H1\n## H2\n### H3\n---\n- Bullet lists\n- Like this one\n---\n**Bold text** and *italic text*\n\`inline code\`\n~~strikethrough~~` };
 
     if (isTouch){
       // On a phone, give the welcome notes room to breathe: keep Welcome + Heads
